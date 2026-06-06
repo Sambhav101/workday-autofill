@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workday Autofill</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149;
+    --dim: #484f58;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    max-width: 900px; margin: 0 auto; padding: 24px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* Settings bar */
+  .settings {
+    display: flex; gap: 16px; align-items: center;
+    padding: 12px 16px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .settings label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .settings select, .settings input[type="checkbox"] { cursor: pointer; }
+  .settings select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 4px 8px; border-radius: 4px; font-size: 13px;
+  }
+
+  /* URL input */
+  .input-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  }
+  .input-section textarea {
+    width: 100%; min-height: 100px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    font-family: monospace; font-size: 13px; resize: vertical;
+  }
+  .input-section textarea::placeholder { color: var(--dim); }
+  .input-section textarea:focus { outline: none; border-color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  button {
+    padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+  /* Queue */
+  .section-title {
+    font-size: 14px; font-weight: 600; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-title .count {
+    font-size: 12px; color: var(--muted); font-weight: 400;
+    background: var(--surface); padding: 2px 8px; border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .queue-list { margin-bottom: 24px; }
+  .queue-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-size: 13px; font-family: monospace;
+  }
+  .queue-item:last-child { border-bottom: none; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-dot.queued { background: var(--dim); }
+  .status-dot.running { background: var(--yellow); animation: pulse 1s infinite; }
+  .status-dot.submitted { background: var(--green); }
+  .status-dot.skipped { background: var(--muted); }
+  .status-dot.blocked { background: var(--yellow); }
+  .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .queue-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queue-status { font-size: 12px; color: var(--muted); min-width: 80px; text-align: right; }
+  .queue-reason { font-size: 11px; color: var(--dim); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Applications table */
+  .app-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .app-table th {
+    text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border);
+    color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase;
+  }
+  .app-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .app-table tr:hover td { background: var(--surface); }
+
+  /* Log */
+  .log {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; font-family: monospace; font-size: 12px; color: var(--muted);
+    max-height: 200px; overflow-y: auto; margin-bottom: 24px;
+  }
+  .log-entry { padding: 2px 0; }
+  .log-entry.error { color: var(--red); }
+  .log-entry.success { color: var(--green); }
+  .log-entry.info { color: var(--accent); }
+
+  .empty { color: var(--dim); font-size: 13px; padding: 16px; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Workday Autofill</h1>
+<p class="subtitle">Paste job URLs, hit Run, watch them submit.</p>
+
+<div class="settings">
+  <label>Backend:
+    <select id="backend">
+      <option value="direct" selected>Direct (no LLM)</option>
+      <option value="claude">Claude API</option>
+      <option value="ollama">Ollama</option>
+    </select>
+  </label>
+  <label>
+    <input type="checkbox" id="autoSubmit" checked>
+    Auto Submit
+  </label>
+  <div style="flex:1"></div>
+  <span id="runStatus" style="font-size:12px; color:var(--muted)"></span>
+</div>
+
+<div class="input-section">
+  <textarea id="urlInput" placeholder="Paste Workday job URLs here (one per line)&#10;https://company.wd5.myworkdayjobs.com/...&#10;https://another.wd1.myworkdayjobs.com/..."></textarea>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="addUrls()">Add to Queue</button>
+    <button class="btn-success" id="runBtn" onclick="runAgent()">Run Agent</button>
+    <button class="btn-danger" id="stopBtn" onclick="stopAgent()" disabled>Stop</button>
+    <div style="flex:1"></div>
+    <button class="btn-ghost" onclick="clearDone()">Clear Done</button>
+    <button class="btn-ghost" onclick="clearAll()">Clear All</button>
+  </div>
+</div>
+
+<div class="section-title">Queue <span class="count" id="queueCount">0</span></div>
+<div class="queue-list" id="queueList">
+  <div class="empty">No jobs in queue</div>
+</div>
+
+<div class="section-title">Log</div>
+<div class="log" id="logBox">
+  <div class="log-entry" style="color:var(--dim)">Waiting for jobs...</div>
+</div>
+
+<div class="section-title">Applications <span class="count" id="appCount">0</span></div>
+<table class="app-table" id="appTable">
+  <thead><tr><th>Date</th><th>Company</th><th>Title</th><th>Status</th></tr></thead>
+  <tbody id="appBody"></tbody>
+</table>
+
+<script>
+const API = '';
+
+async function addUrls() {
+  const text = document.getElementById('urlInput').value.trim();
+  if (!text) return;
+  const urls = text.split('\n').map(u => u.trim()).filter(u => u);
+  const resp = await fetch(`${API}/api/queue/add`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ urls })
+  });
+  const data = await resp.json();
+  document.getElementById('urlInput').value = '';
+  addLog(`Added ${data.added} URL(s) to queue`, 'info');
+  refreshQueue();
+}
+
+async function runAgent() {
+  const backend = document.getElementById('backend').value;
+  const autoSubmit = document.getElementById('autoSubmit').checked;
+  const resp = await fetch(`${API}/api/run`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ backend, auto_submit: autoSubmit })
+  });
+  const data = await resp.json();
+  if (data.error) { addLog(data.error, 'error'); return; }
+  addLog('Agent started', 'info');
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('runStatus').textContent = 'Running...';
+}
+
+async function stopAgent() {
+  await fetch(`${API}/api/stop`, { method: 'POST' });
+  addLog('Stop requested', 'info');
+}
+
+async function clearDone() {
+  await fetch(`${API}/api/queue/clear-done`, { method: 'POST' });
+  refreshQueue();
+}
+
+async function clearAll() {
+  await fetch(`${API}/api/queue/clear`, { method: 'POST' });
+  refreshQueue();
+}
+
+function addLog(msg, cls='') {
+  const box = document.getElementById('logBox');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry' + (cls ? ' ' + cls : '');
+  const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  entry.textContent = `[${time}] ${msg}`;
+  box.appendChild(entry);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function refreshQueue() {
+  const resp = await fetch(`${API}/api/queue`);
+  const queue = await resp.json();
+  const list = document.getElementById('queueList');
+  const queued = queue.filter(q => q.status === 'queued').length;
+  document.getElementById('queueCount').textContent = queue.length;
+
+  if (queue.length === 0) {
+    list.innerHTML = '<div class="empty">No jobs in queue</div>';
+    return;
+  }
+  list.innerHTML = queue.map(q => {
+    const shortUrl = q.url.replace(/https?:\/\//, '').substring(0, 80);
+    const reason = q.reason ? ` — ${q.reason.substring(0, 50)}` : '';
+    return `<div class="queue-item">
+      <div class="status-dot ${q.status}"></div>
+      <div class="queue-url" title="${q.url}">${shortUrl}</div>
+      <div class="queue-reason">${reason}</div>
+      <div class="queue-status">${q.status}</div>
+    </div>`;
+  }).join('');
+}
+
+async function refreshApps() {
+  const resp = await fetch(`${API}/api/applications`);
+  const apps = await resp.json();
+  document.getElementById('appCount').textContent = apps.length;
+  const body = document.getElementById('appBody');
+  const statusColor = {Submitted: 'var(--green)', Blocked: 'var(--yellow)', Error: 'var(--red)'};
+  body.innerHTML = apps.slice().reverse().slice(0, 30).map(a => {
+    const color = statusColor[a.status] || 'var(--muted)';
+    return `<tr>
+      <td>${a.submitted_at || ''}</td>
+      <td>${(a.company || '').charAt(0).toUpperCase() + (a.company || '').slice(1)}</td>
+      <td>${(a.title || '').substring(0, 50)}</td>
+      <td style="color:${color}">${a.status || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// SSE: live updates from the runner
+function connectEvents() {
+  const es = new EventSource(`${API}/api/events`);
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.event === 'ping') return;
+      if (data.event === 'status') {
+        const short = data.url.replace(/https?:\/\//, '').substring(0, 60);
+        addLog(`Running: ${short}`, 'info');
+        refreshQueue();
+      } else if (data.event === 'result') {
+        const cls = data.status === 'submitted' ? 'success' : (data.status === 'error' ? 'error' : '');
+        addLog(`${data.status}: ${data.title || data.url.substring(0, 50)} ${data.reason ? '- ' + data.reason.substring(0, 60) : ''}`, cls);
+        refreshQueue();
+        refreshApps();
+      } else if (data.event === 'done') {
+        addLog('All jobs processed', 'success');
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('runStatus').textContent = '';
+        refreshQueue();
+      } else if (data.event === 'stopped') {
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('runStatus').textContent = '';
+      } else if (data.event === 'error') {
+        addLog(data.message, 'error');
+      }
+    } catch (err) {}
+  };
+  es.onerror = () => { setTimeout(connectEvents, 3000); es.close(); };
+}
+
+// Init
+refreshQueue();
+refreshApps();
+connectEvents();
+// Refresh apps every 30s
+setInterval(refreshApps, 30000);
+</script>
+</body>
+</html>

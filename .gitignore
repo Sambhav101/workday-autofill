@@ -7,6 +7,7 @@ accounts.yaml
 applications.yaml
 report.yaml
 .last_job.yaml
+queue.yaml
 .rag_index.npz
 .rag_chunks.json
 *.log

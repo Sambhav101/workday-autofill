@@ -13,6 +13,7 @@ Playwright-based automation that fills Workday job applications from `profile.ya
 - **Record**: `./venv/bin/python -m src.record` (log submission after manual Submit)
 - **Agent (Ollama)**: `./venv/bin/python -m src.agent` (local LLM orchestrator, free)
 - **Agent (Claude)**: `./venv/bin/python -m src.agent --backend claude` (Claude API, ~$0.01-0.03/job)
+- **Web UI**: `./venv/bin/python -m src.web` (opens at http://localhost:8000, paste URLs + run)
 
 ## Architecture
 
