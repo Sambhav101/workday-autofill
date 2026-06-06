@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+profile.yaml
+accounts.yaml
+applications.yaml
+report.yaml
+.last_job.yaml
+*.log
+.audit/

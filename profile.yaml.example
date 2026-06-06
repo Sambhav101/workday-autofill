@@ -1,0 +1,101 @@
+# Canonical profile — single source of truth for autofill.
+# Seeded from resume.tex. PLEASE REVIEW: corrections welcome, especially TODOs.
+# Sensitive fields are intentionally blank for you to set — never LLM-guessed.
+
+identity:
+  first_name: Jane
+  last_name: Doe
+  preferred_name: Jane
+  # NOTE: resume lists you@example.com, but your account email is
+  # you@example.com — confirm which to use on applications.
+  email: you@example.com
+  phone: ""            # TODO: not on resume — add your phone number
+
+contact:
+  address_line1: ""    # TODO: street address (Workday often requires it)
+  city: New York
+  state: NY
+  postal_code: ""      # TODO
+  country: United States
+
+links:
+  linkedin: https://linkedin.com/in/you
+  website: https://yoursite.com
+  github: ""           # TODO: add if you want it included
+
+work_experience:
+  - company: HCL Technologies
+    title: ML Infra Engineer (at Meta)
+    location: New York, NY, USA
+    start: 2024-03
+    end: 2025-07
+    current: false
+    bullets:
+      - Architected and deployed Sherlock, a production agentic AI system (fine-tuned LLaMA + RAG) to autonomously resolve ML infrastructure queries.
+      - Engineered monitoring/doctor tooling in PyTorch for production LLM health with real-time alerting on entropy explosions, weight deviations, and throughput degradation.
+      - Delivered end-to-end infra across the experimentation and model deployment lifecycle: CUDA kernels, distributed training, model optimization.
+  - company: Tarifica
+    title: Software/Data Engineer
+    location: New York, NY, USA
+    start: 2023-06
+    end: 2024-02
+    current: false
+    bullets:
+      - Built 300+ Python/BeautifulSoup web scrapers and Flask RESTful ETL pipelines feeding PostgreSQL analytics under strict latency requirements.
+  - company: Amazon
+    title: Software Development Engineer
+    location: Seattle, WA, USA
+    start: 2022-07
+    end: 2023-03
+    current: false
+    bullets:
+      - Designed and operated mission-critical AWS microservices (EC2, Lambda, CloudWatch) powering Amazon Go / Just Walk Out stores.
+      - Led migration of a high-traffic service to AWS, cutting cost, latency, and support tickets via automated CI/CD.
+      - Shipped production features across Java, Kotlin, Python, TypeScript, and Ruby on Linux.
+  - company: Microsoft
+    title: Data Science Student Research Fellow
+    location: New York, NY, USA
+    start: 2021-06
+    end: 2021-07
+    current: false
+    bullets:
+      - Extended the Financial Times police-complaints study in R, uncovering race/gender patterns across NYC, Chicago, Philadelphia datasets.
+      - Built regression/ML models and presented findings to Microsoft Research scientists.
+
+education:
+  - school: Stony Brook University - SUNY
+    degree: Master's
+    field: Computer Science
+    gpa: "3.5"
+    start: 2025-08
+    end: 2027-06
+    current: true
+  - school: St. Joseph's College New York
+    degree: Bachelor's
+    field: Computer Science and Mathematics
+    gpa: "3.93"
+    start: 2018-09
+    end: 2022-06
+    current: false
+
+skills:
+  languages: [Python, PyTorch, Java, Rust, C/C++, Kotlin, TypeScript, R, SQL, Verilog]
+  ml_ai: [Transformers, Computer Vision, LLM, CUDA, RAG, TensorFlow, OpenCV, scikit-learn]
+  cloud_tools: [AWS, GCP, Docker, Flask, PostgreSQL, Linux/Unix]
+
+# ── SENSITIVE — you must set these. Never auto-guessed. ──────────────────────
+sensitive:
+  work_authorization: ""        # TODO e.g. "Authorized to work in the US"
+  requires_sponsorship: ""      # TODO "Yes" / "No" — visa sponsorship now or future
+  gender: ""                    # optional, EEO — leave blank to decline
+  race_ethnicity: ""            # optional, EEO
+  veteran_status: ""            # optional, EEO
+  disability_status: ""         # optional, EEO
+  hispanic_latino: ""           # optional, EEO
+
+# ── Common free-text fallbacks (LLM may refine per job) ─────────────────────
+preferences:
+  how_did_you_hear: "Company website"
+  desired_salary: ""            # TODO optional
+  willing_to_relocate: ""       # TODO Yes/No
+  earliest_start_date: ""       # TODO
