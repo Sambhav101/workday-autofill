@@ -11,6 +11,8 @@ Playwright-based automation that fills Workday job applications from `profile.ya
 - **Apply (batch)**: `./venv/bin/python -m src.apply --submit URL1 URL2 ...` (batch mode, report saved to `report.yaml`)
 - **Apply (current tab)**: `./venv/bin/python -m src.apply` (fill whatever tab is open, stop at Review)
 - **Record**: `./venv/bin/python -m src.record` (log submission after manual Submit)
+- **Agent (Ollama)**: `./venv/bin/python -m src.agent` (local LLM orchestrator, free)
+- **Agent (Claude)**: `./venv/bin/python -m src.agent --backend claude` (Claude API, ~$0.01-0.03/job)
 
 ## Architecture
 
@@ -31,6 +33,10 @@ Connects to user's Chrome via CDP (port 9222). Requires Chrome launched with `--
 - `discover.py` — DOM scanner, run before filling any page
 - `profile.py` — loads `profile.yaml`
 - `record.py` — logs completed applications to `applications.yaml`
+- `agent/` — LLM agent orchestrator (Ollama or Claude API backend)
+  - `loop.py` — dual-backend agent loop (tool-use chat)
+  - `tools.py` — tool registry wrapping pipeline functions
+  - `rag.py` — minimal RAG index (Ollama embeddings + numpy cosine search)
 
 ## Data Files
 

@@ -153,6 +153,212 @@ fill engine works.
 3. Test against 3–4 real tenants (different companies) to prove R6 (tenant robustness).
 4. Harden into product: error handling, resume-mid-app, packaging, light test suite + CI.
 
+---
+
+## v2: Local Agent (Open-Source LLM Orchestrator)
+
+> Status: **DESIGN IN PROGRESS**
+
+### Problem & goals
+
+Running the pipeline through Claude Code works but burns ~70% API usage for 7 jobs because
+the *orchestration* (read errors, decide next step, debug) runs through Claude's context
+window. The actual automation code is 95% rule-based — only ~5% needs an LLM (the question
+resolver). We need a local agent that can orchestrate the pipeline for free.
+
+**Goal:** A local agent powered by an open-source model (via Ollama) that can:
+1. Accept job URLs and run the apply pipeline end-to-end
+2. Handle errors/blockers by reading output and deciding next steps
+3. Answer "what does X do" questions about the codebase via RAG
+4. Fall back to Claude API only for the question resolver (configurable)
+5. Pause for human input on email verification and password resets (never automated)
+
+**Success =** user types a job URL into a local CLI, the agent runs the full pipeline
+without any paid API calls (except optional resolver), and handles common errors
+(missing fields, page detection failures) autonomously.
+
+### Non-goals
+
+- ❌ Replacing Claude resolver entirely (keep as option, add Ollama alternative)
+- ❌ Email/password automation by the agent (security risk — stays human-in-the-loop)
+- ❌ Building a GUI or web interface (CLI-first)
+- ❌ Fine-tuning a model on Workday forms (tool-use + RAG is sufficient)
+
+### Architecture
+
+```mermaid
+flowchart TD
+    USER[User: pastes job URL] --> AGENT
+
+    subgraph Local Agent
+      AGENT[Agent Loop<br/>Python + Ollama]
+      TOOLS[Tool Registry<br/>apply, fill, status, debug]
+      RAG[RAG Index<br/>FAISS + Ollama embeddings]
+      AGENT -->|tool calls| TOOLS
+      AGENT -->|context lookup| RAG
+    end
+
+    subgraph Existing Pipeline
+      APPLY[src.apply — _run_one / run_batch]
+      FILL[src.fill / experience / questions]
+      RECORD[src.record — applications.yaml]
+      RESOLVER[src.resolver — Claude API<br/>optional, for unrecognized questions]
+    end
+
+    TOOLS --> APPLY
+    TOOLS --> RECORD
+    APPLY --> FILL
+    FILL -->|unrecognized questions| RESOLVER
+    APPLY --> BROWSER[Chrome via CDP]
+    BROWSER --> WD[Workday]
+
+    AGENT -.->|email verify/password reset| USER
+```
+
+### Components
+
+**1. Agent Loop (`src/agent/loop.py`)**
+
+A simple Python loop:
+```
+while True:
+    user_input or tool_result → build messages
+    send to Ollama (with tools + system prompt)
+    parse response → text or tool_call
+    if tool_call: execute, feed result back
+    if text: print to user
+    if done: break
+```
+
+No framework (no LangChain). Just `requests` to Ollama's `/api/chat` endpoint
+with tool-use format. Keeps it debuggable and dependency-light.
+
+**2. Tool Registry (`src/agent/tools.py`)**
+
+Thin wrappers around existing pipeline functions. Each tool has a name, description,
+parameters (JSON schema), and an execute function. The agent sees tool descriptions
+and decides which to call.
+
+Proposed tools:
+
+| Tool | Description | Wraps |
+|------|-------------|-------|
+| `apply_to_job` | Apply to a single job URL (fill + submit) | `src.apply.main(url, auto_submit=True)` |
+| `apply_batch` | Apply to multiple job URLs | `src.apply.run_batch(urls)` |
+| `fill_current_page` | Fill whatever page is open in Chrome | `src.apply._run_one(page)` |
+| `check_page` | Detect current page type and list fields | `discover_page + discover_fields` |
+| `list_applications` | Show submitted applications | `src.record._load()` |
+| `check_required` | List required-but-empty fields | `_check_required_fields` |
+| `click_next` | Click Next/Save & Continue | `_click_next` |
+| `run_signup` | Create account or sign in | `create_or_sign_in` |
+| `search_codebase` | RAG search for codebase context | vector search |
+
+**3. RAG Index (`src/agent/rag.py`)**
+
+What to index (small corpus — ~50 chunks):
+- `CLAUDE.md` — project rules, critical constraints
+- `DESIGN.md` — architecture understanding
+- Widget patterns from memory — the 52 hard-won patterns
+- Module docstrings from all `src/*.py` files
+- `profile.yaml.example` — field reference
+
+Implementation:
+- **Embedding model:** Ollama's `nomic-embed-text` (768-dim, fast, local)
+- **Vector store:** FAISS (via `faiss-cpu`) or plain numpy cosine similarity
+  (corpus is tiny, no need for a real DB)
+- **Chunking:** Split by section headers (##), ~500 tokens per chunk
+- **Retrieval:** Top-3 chunks injected into system prompt when agent needs context
+
+Index is built once at startup, rebuilt on file changes. Stored as a pickle/npz file.
+
+**4. System Prompt**
+
+The agent's system prompt contains:
+- Role: "You are a Workday job application assistant"
+- Available tools (auto-injected by the loop)
+- Key rules: never auto-submit without user confirmation, email/password is human-only,
+  check required fields before Next, fill optional sections too
+- Profile summary (name, target roles, key skills — not credentials)
+- Recent application history (last 5 from applications.yaml)
+
+RAG chunks are appended when the agent calls `search_codebase` or when an error
+occurs that needs debugging context.
+
+### Model choice / agent backends
+
+Two agent backends, user picks via config:
+
+**1. Ollama (free, local)**
+- Model: `llama3.1:8b` — good tool-use, runs on M-series Mac at ~30 tok/s
+- Alternative: `qwen2.5:7b` — slightly better structured output
+- Cost: $0. Runs entirely local.
+- Tradeoff: May struggle with complex error debugging. Upgrade to 70B if needed.
+
+**2. Claude API (cheap, smart)**
+- Model: `claude-sonnet-4-6` via Anthropic SDK with tool-use
+- Cost: ~$0.01-0.03 per application (~5-10K tokens per job)
+- Tradeoff: Requires API key, but 100x cheaper than Claude Code because
+  context is focused (system prompt + tools, no file reads/edits)
+- Why cheaper than Claude Code: Claude Code runs on Opus with full conversation
+  context (file reads, edits, all debug output). The API agent has a ~3K token
+  system prompt, calls tools, gets structured results. Each job is an independent
+  short conversation, not an ever-growing context window.
+
+**For the question resolver:** Stays as Claude API by default. Optionally swap to
+Ollama (`resolver_backend: claude | ollama`) — but 8B models may not be reliable
+enough for nuanced question answering with confidence scores.
+
+### Security model
+
+- **Credentials never in agent context.** The agent calls tools that internally read
+  `profile.yaml` — the agent never sees passwords or account emails.
+- **Email verification = human-in-the-loop.** When pipeline returns `pending_verify`
+  or `pending_reset`, the agent prints a message and waits for user input.
+- **No shell access.** The agent can only call registered tools, not arbitrary commands.
+- **Tool results are sanitized.** Strip any credential-like values before returning
+  to the model.
+
+### Config
+
+```yaml
+# agent_config.yaml
+agent_backend: ollama  # ollama | claude
+ollama_model: llama3.1:8b
+ollama_host: http://localhost:11434
+claude_model: claude-sonnet-4-6  # for claude agent backend
+resolver_backend: claude  # claude | ollama (question resolver, independent of agent)
+resolver_model: llama3.1:70b  # only if resolver_backend=ollama
+auto_submit: true
+max_concurrent_jobs: 1
+```
+
+### Alternatives considered
+
+- **LangChain agent** — rejected: heavy dependencies, opaque abstractions, harder to debug.
+  Our tool set is small and fixed; a custom loop is simpler.
+- **Full RAG with ChromaDB/Weaviate** — rejected: corpus is ~50 chunks. FAISS or numpy
+  is sufficient. No need for a database server.
+- **Fine-tuning on Workday forms** — rejected: tool-use is sufficient, and fine-tuning
+  would need training data we don't have. The existing pipeline code handles form filling;
+  the model just needs to orchestrate.
+- **MCP server** — considered: would let any MCP-compatible client (Claude Desktop, etc.)
+  use our tools. Good v2.1 addition but adds complexity for the initial build.
+
+### Rollout plan
+
+1. **Tool registry + agent loop** — get a basic loop working with 3 tools (apply, check_page, list_applications)
+2. **RAG index** — index docs, wire up search_codebase tool
+3. **Error handling** — agent reads pipeline errors and retries/adjusts
+4. **Resolver backend swap** — make resolver.py support Ollama as alternative to Claude
+5. **CLI entry point** — `python -m src.agent` starts the interactive agent
+6. **Test against 3-4 real jobs** — validate end-to-end without Claude Code
+
+### Open questions
+
+1. Should the agent auto-confirm submit, or always ask the user? (Current: configurable via `auto_submit`)
+2. Do we need a web UI eventually, or is CLI sufficient?
+3. Should the agent be able to search for jobs (LinkedIn/Indeed scraping), or just fill URLs given to it?
+
 ## Settled decisions (resolved from open questions)
 
 1. ✅ **LLM model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`).
