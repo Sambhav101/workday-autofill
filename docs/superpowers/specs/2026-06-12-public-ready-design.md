@@ -34,8 +34,8 @@ ever committed — all are gitignored. So no history rewrite is needed. The leak
 |------|------|-----|
 | `profile.yaml.example` | Real work history & education | Replace with a fully-fake person (John Sample, Acme/Globex, Example State University). Add `resume_path` and per-education `workday_name`/`search_term`. |
 | `src/experience.py` | `SCHOOL_SEARCH_TERMS`/`SCHOOL_PICK_NAMES` (real schools); hardcoded resume path | Delete the dicts; read optional `search_term`/`workday_name` per education entry. Resume path from `profile.resume_path`; CLI `--resume` overrides. |
-| `src/agent/rag.py` | `~/.claude/projects/-Users-sambhav-.../memory` path | Drop it; read repo-local `docs/widget-patterns.md` if present. |
-| `src/discover.py` | Comment example `"Sambhav"` | Genericize. |
+| `src/agent/rag.py` | hardcoded `~/.claude/.../memory` path leaking the local username | Drop it; read repo-local `docs/widget-patterns.md` if present. |
+| `src/discover.py` | a real first name in a code comment | Genericize. |
 
 ### 2. Profile becomes fully config-driven
 
