@@ -1,87 +1,78 @@
 # Canonical profile — single source of truth for autofill.
-# Seeded from resume.tex. PLEASE REVIEW: corrections welcome, especially TODOs.
-# Sensitive fields are intentionally blank for you to set — never LLM-guessed.
+#
+# This is a FAKE sample. Copy it to profile.yaml (gitignored) and replace every
+# value with your own, OR run `python -m src.setup` to generate profile.yaml
+# interactively. Sensitive EEO fields are intentionally blank — never auto-guessed.
 
 identity:
-  first_name: Jane
-  last_name: Doe
-  preferred_name: Jane
-  # NOTE: resume lists you@example.com, but your account email is
-  # you@example.com — confirm which to use on applications.
-  email: you@example.com
-  phone: ""            # TODO: not on resume — add your phone number
+  first_name: John
+  last_name: Sample
+  preferred_name: John
+  email: john.sample@example.com
+  phone: "+1 555-0100"
 
 contact:
-  address_line1: ""    # TODO: street address (Workday often requires it)
-  city: New York
-  state: NY
-  postal_code: ""      # TODO
+  address_line1: 123 Example Street
+  city: Springfield
+  state: IL
+  postal_code: "62704"
   country: United States
 
 links:
-  linkedin: https://linkedin.com/in/you
-  website: https://yoursite.com
-  github: ""           # TODO: add if you want it included
+  linkedin: https://linkedin.com/in/john-sample
+  website: https://johnsample.example.com
+  github: https://github.com/johnsample
+
+# Path to the resume PDF the tool uploads to Workday's resume field.
+resume_path: ""        # e.g. /Users/you/Documents/resume.pdf
 
 work_experience:
-  - company: HCL Technologies
-    title: ML Infra Engineer (at Meta)
-    location: New York, NY, USA
-    start: 2024-03
-    end: 2025-07
+  - company: Acme Corporation
+    title: Senior Software Engineer
+    location: Springfield, IL, USA
+    start: 2022-01
+    end: 2025-05
     current: false
     bullets:
-      - Architected and deployed Sherlock, a production agentic AI system (fine-tuned LLaMA + RAG) to autonomously resolve ML infrastructure queries.
-      - Engineered monitoring/doctor tooling in PyTorch for production LLM health with real-time alerting on entropy explosions, weight deviations, and throughput degradation.
-      - Delivered end-to-end infra across the experimentation and model deployment lifecycle: CUDA kernels, distributed training, model optimization.
-  - company: Tarifica
-    title: Software/Data Engineer
-    location: New York, NY, USA
-    start: 2023-06
-    end: 2024-02
+      - Led development of a customer-facing web platform serving millions of requests per day.
+      - Designed and operated cloud microservices with automated CI/CD and on-call monitoring.
+      - Mentored engineers and drove adoption of testing and code-review practices.
+  - company: Globex Inc.
+    title: Software Engineer
+    location: Metropolis, NY, USA
+    start: 2019-06
+    end: 2021-12
     current: false
     bullets:
-      - Built 300+ Python/BeautifulSoup web scrapers and Flask RESTful ETL pipelines feeding PostgreSQL analytics under strict latency requirements.
-  - company: Amazon
-    title: Software Development Engineer
-    location: Seattle, WA, USA
-    start: 2022-07
-    end: 2023-03
-    current: false
-    bullets:
-      - Designed and operated mission-critical AWS microservices (EC2, Lambda, CloudWatch) powering Amazon Go / Just Walk Out stores.
-      - Led migration of a high-traffic service to AWS, cutting cost, latency, and support tickets via automated CI/CD.
-      - Shipped production features across Java, Kotlin, Python, TypeScript, and Ruby on Linux.
-  - company: Microsoft
-    title: Data Science Student Research Fellow
-    location: New York, NY, USA
-    start: 2021-06
-    end: 2021-07
-    current: false
-    bullets:
-      - Extended the Financial Times police-complaints study in R, uncovering race/gender patterns across NYC, Chicago, Philadelphia datasets.
-      - Built regression/ML models and presented findings to Microsoft Research scientists.
+      - Built RESTful backend services and ETL pipelines feeding an analytics warehouse.
+      - Shipped features across the stack in Python, TypeScript, and SQL.
 
 education:
-  - school: Stony Brook University - SUNY
+  - school: Example State University
     degree: Master's
     field: Computer Science
-    gpa: "3.5"
-    start: 2025-08
-    end: 2027-06
-    current: true
-  - school: St. Joseph's College New York
+    gpa: "3.7"
+    start: 2017-08
+    end: 2019-05
+    current: false
+    # Workday's school search/list names often differ from the real name.
+    # search_term: what to type into Workday's school search box.
+    # workday_name: the exact option to pick from the results.
+    # Leave both out to let the tool derive a search term from `school`.
+    search_term: Example State
+    workday_name: Example State University
+  - school: Example Community College
     degree: Bachelor's
-    field: Computer Science and Mathematics
-    gpa: "3.93"
-    start: 2018-09
-    end: 2022-06
+    field: Computer Science
+    gpa: "3.8"
+    start: 2013-08
+    end: 2017-05
     current: false
 
 skills:
-  languages: [Python, PyTorch, Java, Rust, C/C++, Kotlin, TypeScript, R, SQL, Verilog]
-  ml_ai: [Transformers, Computer Vision, LLM, CUDA, RAG, TensorFlow, OpenCV, scikit-learn]
-  cloud_tools: [AWS, GCP, Docker, Flask, PostgreSQL, Linux/Unix]
+  languages: [Python, Java, TypeScript, SQL, Go]
+  ml_ai: [TensorFlow, scikit-learn, Pandas]
+  cloud_tools: [AWS, Docker, PostgreSQL, Linux/Unix]
 
 # ── SENSITIVE — you must set these. Never auto-guessed. ──────────────────────
 sensitive:

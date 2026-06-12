@@ -139,25 +139,18 @@ def _school_widget_type(page: Page, aid: str) -> str:
     return "text"
 
 
-SCHOOL_SEARCH_TERMS = {
-    "stony brook university - suny": "Stony Brook",
-    "stony brook university": "Stony Brook",
-    "st. joseph's college new york": "Saint Josephs",
-    "st. josephs college new york": "Saint Josephs",
-    "saint joseph's college new york": "Saint Josephs",
-}
-
-SCHOOL_PICK_NAMES = {
-    "stony brook university - suny": "Stony Brook University",
-    "stony brook university": "Stony Brook University",
-    "st. joseph's college new york": "Saint Josephs College-Main Campus",
-    "st. josephs college new york": "Saint Josephs College-Main Campus",
-    "saint joseph's college new york": "Saint Josephs College-Main Campus",
-}
+def _school_search_term(ed: dict) -> str:
+    """What to type into Workday's school search box. The user can override per
+    education entry with `search_term`; otherwise derive it from the school name."""
+    if ed.get("search_term"):
+        return str(ed["search_term"]).strip()
+    name = str(ed.get("school", ""))
+    return name.split(" - ")[0].split(",")[0].strip()
 
 
-def _fill_school_multiselect(page: Page, aid: str, idx: int, school_name: str) -> tuple:
+def _fill_school_multiselect(page: Page, aid: str, idx: int, ed: dict) -> tuple:
     """Fill school field when it's a searchable multiselect (formField-school)."""
+    school_name = ed["school"]
     wrap = page.locator(f'[data-automation-id="{aid}"]').nth(idx)
     if not wrap.count():
         return False, "field missing"
@@ -166,8 +159,10 @@ def _fill_school_multiselect(page: Page, aid: str, idx: int, school_name: str) -
         existing = wrap.locator(chip_sel).first.inner_text().strip()
         return True, f"already set: {existing}"
 
-    search_term = SCHOOL_SEARCH_TERMS.get(school_name.lower(), school_name.split(" - ")[0].split(",")[0].strip())
-    pick_name = SCHOOL_PICK_NAMES.get(school_name.lower())
+    # `workday_name` is the exact option to pick from the results (Workday's list
+    # names often differ from the real school name). Optional, set per profile entry.
+    search_term = _school_search_term(ed)
+    pick_name = ed.get("workday_name")
 
     box = wrap.locator("input").first
     box.evaluate("e=>e.scrollIntoView({block:'center'})")
@@ -226,7 +221,7 @@ def fill_education(page: Page, schools: list[dict]):
     ensure_blocks(page, aid, 1, len(schools))
     for i, ed in enumerate(schools):
         if school_widget == "multiselect":
-            log(f"edu[{i}] school", *_fill_school_multiselect(page, aid, i, ed["school"]))
+            log(f"edu[{i}] school", *_fill_school_multiselect(page, aid, i, ed))
         else:
             log(f"edu[{i}] school", *_text_nth(page, aid, i, ed["school"]))
         deg_wrap = page.locator('[data-automation-id="formField-degree"]').nth(i)
@@ -785,6 +780,9 @@ def upload_resume(page: Page, path: str):
     if already:
         log("resume", True, "already uploaded")
         return
+    if not path:
+        log("resume", False, "no resume_path set in profile.yaml")
+        return
     if not Path(path).exists():
         log("resume", False, f"file not found: {path}")
         return
@@ -864,7 +862,7 @@ def _verify_education(page: Page, schools: list[dict]):
                 chip = school_wrap.locator('[data-automation-id="selectedItem"]')
                 if chip.count():
                     current_school = chip.first.inner_text().strip()
-                    expected = SCHOOL_PICK_NAMES.get(ed["school"].lower(), ed["school"])
+                    expected = ed.get("workday_name") or ed["school"]
                     if current_school.lower() != expected.lower():
                         console.print(f"[yellow]  edu[{i}] school mismatch: got '{current_school}', expected '{expected}'[/yellow]")
             else:
@@ -881,10 +879,11 @@ def _section_present(page: Page, heading: str) -> bool:
     return page.locator(sel).count() > 0
 
 
-def fill_experience(page: Page, resume_path: str = "/Users/sambhav/projects/portfolio_v2/resume.pdf"):
+def fill_experience(page: Page, resume_path: str | None = None):
     global results
     results = []
     p = load_profile()
+    resume_path = resume_path or p.get("resume_path") or ""
 
     has_work = (page.locator('[data-automation-id="formField-jobTitle"]').count()
                 or _section_present(page, "Work Experience")
@@ -935,9 +934,10 @@ def render():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--section", choices=["work", "education", "skills", "links", "resume", "all"], default="all")
-    ap.add_argument("--resume", default="/Users/sambhav/projects/portfolio_v2/resume.pdf")
+    ap.add_argument("--resume", default=None, help="resume PDF path (overrides profile.resume_path)")
     args = ap.parse_args()
     p = load_profile()
+    resume_path = args.resume or p.get("resume_path") or ""
     skills = (p.get("skills", {}).get("languages", []) + p.get("skills", {}).get("ml_ai", []))[:8]
 
     with sync_playwright() as pw:
@@ -955,7 +955,7 @@ def main():
         if args.section in ("links", "all"):
             fill_links(page, p.get("links", {}))
         if args.section in ("resume", "all"):
-            upload_resume(page, args.resume)
+            upload_resume(page, resume_path)
         render()
         b.close()
 

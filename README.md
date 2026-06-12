@@ -28,11 +28,27 @@ logins to some cloud service.
 
 ## Setup
 
+Requires Python 3.13 or 3.14.
+
 ```bash
-python3.13 -m venv venv
+python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 ./venv/bin/playwright install chromium
 ```
+
+Then create your profile (gitignored — never enters the repo):
+
+```bash
+./venv/bin/python -m src.setup      # interactive prompts -> profile.yaml
+```
+
+Prefer to edit a file by hand? Copy the sample instead:
+
+```bash
+cp profile.yaml.example profile.yaml   # then edit it
+```
+
+Set `resume_path` in `profile.yaml` to your resume PDF so the tool can upload it.
 
 ## Running
 
@@ -51,15 +67,20 @@ python3.13 -m venv venv
 ./venv/bin/pytest   # CDP test auto-skips if no debug Chrome is running
 ```
 
+By default the tool **stops before the final Submit** so you review everything
+(`auto_submit: false` in `agent_config.yaml`). Flip it to `true` to submit
+automatically — at your own risk.
+
 ## Status
 
 Early but working: it connects to real Chrome, detects Workday fields, and fills
-the "My Information" page against a live posting with a review report. Next up is
-generating `profile.yaml` straight from a resume. See `DESIGN.md` and `TASKS.md`.
+the application pages against live postings with a review report, halting at the
+Review step for you to submit. See `DESIGN.md` and `TASKS.md`.
 
 ## Privacy
 
 The browser automation runs locally and drives a session you're already logged
-into. Your details live in a gitignored `profile.yaml`. If you point the question
-resolver at a hosted model, only the free-text questions go out; everything else
-stays on your machine.
+into. Your details live in a gitignored `profile.yaml` (and `accounts.yaml`,
+`applications.yaml`) — none of these are tracked by git, so nothing personal ships
+with the repo. If you point the question resolver at a hosted model, only the
+free-text questions go out; everything else stays on your machine.

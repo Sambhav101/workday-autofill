@@ -124,9 +124,8 @@ def build_index(host: str = "http://localhost:11434"):
         if p.exists():
             chunks.extend(_chunk_python(p.read_text(), src))
 
-    # Add widget patterns from memory if available
-    memory_dir = Path.home() / ".claude/projects/-Users-sambhav-projects-workday-autofill/memory"
-    patterns = memory_dir / "workday-widget-patterns.md"
+    # Add Workday widget patterns if the doc is present (technical notes, optional)
+    patterns = PROJECT_ROOT / "docs" / "widget-patterns.md"
     if patterns.exists():
         chunks.extend(_chunk_markdown(patterns.read_text(), "widget-patterns"))
 

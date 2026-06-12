@@ -3,6 +3,17 @@
 Work breakdown from `DESIGN.md`. Each item small + independently shippable.
 Labels: `[infra]` `[feature]` `[bug]` `[test]`.
 
+## Milestone 7 — Public release prep ✅ DONE (2026-06-12)
+- [x] `[infra]` Scrub personal data from tracked files; genericize `profile.yaml.example` to a fake person
+- [x] `[feature]` Config-driven school matching (`search_term`/`workday_name` per education entry) — replaced hardcoded school dicts
+- [x] `[feature]` `resume_path` in profile (removed hardcoded resume path); `--resume` overrides
+- [x] `[feature]` `src/setup.py` — interactive `python -m src.setup` writes gitignored `profile.yaml`
+- [x] `[infra]` Default `auto_submit: false` (don't auto-submit on a stranger's first run)
+- [x] `[infra]` Bump playwright pin to >=1.50 (greenlet wheels for Python 3.13/3.14); recreate venv
+- [x] `[infra]` Ship `docs/widget-patterns.md` (sanitized technical notes for the RAG agent)
+- [x] `[test]` Verified: pytest green, setup script generates valid profile, no personal data in tracked files, git history clean
+- Spec: `docs/superpowers/specs/2026-06-12-public-ready-design.md`
+
 ## Milestone 0 — Scaffold (workflow phase 4) ✅ DONE
 - [x] `[infra]` Python 3.13 venv + `requirements.txt` (3.14 broke greenlet; pinned to 3.13)
 - [x] `[infra]` `playwright install chromium` + CDP smoke test (src/browser.py, scripts/launch_chrome.sh)

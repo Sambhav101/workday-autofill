@@ -4,4 +4,4 @@ ollama_model: llama3.1:8b
 ollama_host: http://localhost:11434
 claude_model: claude-sonnet-4-6
 resolver_backend: claude     # claude | ollama (question resolver, independent of agent)
-auto_submit: true
+auto_submit: false           # false = stop before Submit so you review; true = submit automatically
