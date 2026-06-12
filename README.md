@@ -50,29 +50,55 @@ conservative, because some answers are legally binding:
 Every run prints a per-field review table and **stops before Submit** by default,
 so you can fix anything flagged before anything is sent.
 
-## Setup
+## Prerequisites
 
-Requires Python 3.13 or 3.14.
+- **Google Chrome** installed (the tool drives your real Chrome).
+- **Python 3.13 or 3.14**.
+- **git** (to clone the repo).
+
+Works on macOS, Linux, and Windows.
+
+## Install
+
+Clone the repo and create an isolated environment.
+
+**macOS / Linux:**
 
 ```bash
+git clone https://github.com/Sambhav101/workday-autofill.git
+cd workday-autofill
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 ./venv/bin/playwright install chromium
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/Sambhav101/workday-autofill.git
+cd workday-autofill
+py -3.13 -m venv venv
+.\venv\Scripts\pip install -r requirements.txt
+.\venv\Scripts\playwright install chromium
+```
+
 Then create your profile (gitignored — never enters the repo):
 
 ```bash
-./venv/bin/python -m src.setup      # interactive prompts -> profile.yaml
+# macOS/Linux
+./venv/bin/python -m src.setup        # interactive prompts -> profile.yaml
+# Windows
+.\venv\Scripts\python -m src.setup
 ```
 
-Prefer to edit a file by hand? Copy the sample instead:
+Prefer to edit a file by hand? Copy the sample instead and edit it:
 
 ```bash
-cp profile.yaml.example profile.yaml   # then edit it
+cp profile.yaml.example profile.yaml          # Windows: copy profile.yaml.example profile.yaml
 ```
 
 Set `resume_path` in `profile.yaml` to your resume PDF so the tool can upload it.
+See **Filling in your details** below for what every field does.
 
 ## Filling in your details (walkthrough)
 
@@ -146,24 +172,43 @@ submit yourself.
 
 ## Running
 
-1. Quit Chrome completely (Cmd+Q, not just the window).
-2. Launch Chrome with remote debugging (reuses your real profile):
+1. **Launch a debug Chrome.** This opens a *separate* Chrome instance with a
+   dedicated profile, so you do **not** need to quit your normal Chrome.
+
    ```bash
+   # macOS / Linux
    ./scripts/launch_chrome.sh
    ```
-3. In that Chrome, sign into the Workday tenant and open the application page.
-4. Fill it:
+   ```powershell
+   # Windows (PowerShell)
+   .\scripts\launch_chrome.ps1
+   ```
+   On Linux, if the script can't find Chrome, launch it directly:
    ```bash
-   ./venv/bin/python -m src.fill
+   google-chrome --remote-debugging-port=9222 \
+     --user-data-dir="$HOME/.workday-autofill-chrome" --no-first-run
    ```
 
-```bash
-./venv/bin/pytest   # CDP test auto-skips if no debug Chrome is running
-```
+2. **Sign in.** In that Chrome window, log into the Workday tenant and open the
+   job's application page. (You only log in once per tenant — the dedicated
+   profile keeps the session.)
 
-By default the tool **stops before the final Submit** so you review everything
-(`auto_submit: false` in `agent_config.yaml`). Flip it to `true` to submit
-automatically — at your own risk.
+3. **Fill it.**
+   ```bash
+   ./venv/bin/python -m src.fill          # Windows: .\venv\Scripts\python -m src.fill
+   ```
+   The tool prints a review table and **stops before Submit**. Fix anything marked
+   `FLAG`/`NEEDS FIX` in Chrome, then submit yourself.
+
+To run the whole multi-page wizard instead of just "My Information", use
+`python -m src.apply`.
+
+By default the tool **stops before the final Submit** (`auto_submit: false` in
+`agent_config.yaml`). Flip it to `true` to submit automatically — at your own risk.
+
+```bash
+./venv/bin/pytest   # run the tests; the CDP test auto-skips if no debug Chrome is running
+```
 
 ## Status
 
