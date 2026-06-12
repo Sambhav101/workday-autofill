@@ -74,6 +74,76 @@ cp profile.yaml.example profile.yaml   # then edit it
 
 Set `resume_path` in `profile.yaml` to your resume PDF so the tool can upload it.
 
+## Filling in your details (walkthrough)
+
+Everything personal lives in **`profile.yaml`** (gitignored). `python -m src.setup`
+prompts you through it; here's what each part feeds and what you can leave blank.
+
+**1. Identity, contact, links, resume.** Name, email, phone, address, LinkedIn/site/
+GitHub, and `resume_path` (the PDF Workday uploads). These fill the "My Information"
+and "My Experience" pages.
+
+```yaml
+identity:   { first_name: Ada, last_name: Lovelace, email: ada@example.com, phone: "+1 555-0100" }
+resume_path: /Users/you/Documents/resume.pdf
+```
+
+**2. Work history & education.** One block per job/school. Education entries take an
+optional `workday_name`/`search_term` — Workday's school list often names a school
+differently than you would, so this tells the tool exactly what to search and pick:
+
+```yaml
+education:
+  - school: Example State University
+    degree: Master's
+    field: Computer Science
+    end: 2027-06            # also used as your graduation date on question pages
+    current: true
+    search_term: Example State          # what to type into Workday's school search
+    workday_name: Example State University   # the exact option to select
+```
+
+**3. Sensitive answers (visa, salary, EEO).** Set what applies to *you*; blanks are
+flagged for manual entry, never guessed:
+
+```yaml
+sensitive:
+  work_authorization: "Authorized to work in the US"   # or "US citizen", "Permanent resident", ...
+  requires_sponsorship: "No"        # Yes / No
+  gender: ""                        # EEO — blank = decline to answer
+  race_ethnicity: ""                # blank = decline
+  veteran_status: ""                # blank = decline
+  disability_status: ""             # blank = decline
+preferences:
+  desired_salary: "120000"          # blank = flagged, not auto-filled
+  earliest_start_date: "ASAP"
+```
+
+The tool answers visa/citizenship questions only from these fields — e.g. it will
+**not** claim you're a citizen just because you're authorized to work.
+
+**4. Common screening questions → `screening_rules.yaml`** (this file *is* in the
+repo and is meant to be edited). It maps question keywords to a fixed answer:
+
+```yaml
+rules:
+  - { match: [non-compete],  answer: "No" }
+  - { match: [arbitration],  answer: "Yes" }   # change to "No" to decline arbitration
+```
+
+The shipped defaults are common but not universal. Open it once, change any answer
+that doesn't fit you, or delete a rule so that question gets **flagged for you to
+answer by hand** instead. No Python required.
+
+**5. Free-text questions (optional LLM).** Anything not covered by the above can go
+to an LLM resolver, grounded only in your profile. Enable it with
+`export ANTHROPIC_API_KEY=...` (or point at a local Ollama model in
+`agent_config.yaml`). Without a key, those questions are simply flagged.
+
+**Then run it.** Every field shows up in a review table and the tool **stops before
+Submit** — so you fill anything marked `FLAG`/`NEEDS FIX` directly in Chrome, then
+submit yourself.
+
 ## Running
 
 1. Quit Chrome completely (Cmd+Q, not just the window).
