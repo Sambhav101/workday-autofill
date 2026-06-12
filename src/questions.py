@@ -7,6 +7,9 @@ the resolver returns UNSURE on is flagged for manual entry. Stops before submit.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import yaml
 from playwright.sync_api import sync_playwright, Page
 from rich.console import Console
 from rich.table import Table
@@ -21,66 +24,32 @@ console = Console()
 
 _RESOLVER_THRESHOLD = 0.6
 
-# NOTE: visa sponsorship, work authorization, citizenship/permanent-residency,
-# salary, and location questions are NOT hardcoded here — they are answered from
-# the user's profile (or flagged for manual entry) by `_sensitive_answer` and the
-# text rules below. Putting fixed answers here would impose one person's situation
-# on every user, which on a legal application is a misrepresentation.
-RULES = [
-    (["legal age"], "Yes"),
-    (["background check"], "Yes"),
-    (["able to work", "relocate"], "Yes"),
-    (["relocate"], "Yes"),
-    (["non-compete"], "No"),
-    (["non-disclosure"], "No"),
-    (["restrictive covenant"], "No"),
-    (["post-employment"], "No"),
-    (["post employment"], "No"),
-    (["involuntarily discharged"], "No"),
-    (["asked to resign"], "No"),
-    (["worked for"], "No"),
-    (["worked at"], "No"),
-    (["related to anyone"], "No"),
-    (["close personal relationship"], "No"),
-    (["familial relationship"], "No"),
-    (["familial relationships"], "No"),
-    (["government office"], "No"),
-    (["government agency"], "No"),
-    (["outside employment"], "No"),
-    (["engage with", "contracts"], "No"),
-    (["conflict of interest"], "No"),
-    (["arbitration"], "Yes"),
-    (["current associate"], "No"),
-    (["current employee"], "No"),
-    (["18 years"], "Yes"),
-    (["age or older"], "Yes"),
-    (["able to perform"], "Yes"),
-    (["previously worked for"], "No"),
-    (["interviewed before"], "No"),
-    (["interviewed with"], "No"),
-    (["previously interviewed"], "No"),
-    (["taken exam"], "No"),
-    (["taken any exam"], "No"),
-    (["hold any certification"], "No"),
-    (["certifications do you hold"], "No"),
-    (["clubs or org"], "No"),
-    (["organizations do you"], "No"),
-    (["member of any"], "No"),
-    (["immediate family"], "No"),
-    (["debarred"], "No"),
-    (["suspended", "ineligible"], "No"),
-    (["communication", "preference"], "No"),
-    (["future position"], "No"),
-    (["future opening"], "No"),
-    (["receive communication"], "No"),
-    # Location: only auto-pick a NEUTRAL option ("No preference"); never assert a
-    # specific city. If no neutral option exists, it falls through to "option not
-    # found" and is flagged for manual entry.
-    (["preferred", "location"], "No preference|No Preference|No preference at this time"),
-    (["geographic", "location"], "No preference|No Preference|No preference at this time"),
-    (["preferred", "geographic"], "No preference|No Preference|No preference at this time"),
-    (["location preference"], "No preference|No Preference|No preference at this time"),
-]
+# Keyword rules for common screening questions live in an editable YAML file
+# (screening_rules.yaml) so users can change answers without touching Python.
+# Sensitive questions (visa/work-auth/citizenship/salary) are NOT here — they come
+# from the user's profile via `_sensitive_answer` and the text rules, or are flagged.
+RULES_PATH = Path(__file__).resolve().parent.parent / "screening_rules.yaml"
+
+
+def load_rules(path: Path = RULES_PATH) -> list[tuple[list[str], str]]:
+    """Load screening rules as (keywords, answer) tuples. Missing file -> no rules
+    (questions then rely on the profile + LLM resolver, or get flagged)."""
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text()) or {}
+    rules: list[tuple[list[str], str]] = []
+    for r in data.get("rules", []):
+        match = r.get("match", [])
+        if isinstance(match, str):
+            match = [match]
+        kws = [str(k).strip().lower() for k in match if str(k).strip()]
+        ans = str(r.get("answer", "")).strip()
+        if kws and ans:
+            rules.append((kws, ans))
+    return rules
+
+
+RULES = load_rules()
 
 
 def _question_for(page: Page, el_handle) -> str:

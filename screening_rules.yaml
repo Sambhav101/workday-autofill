@@ -1,0 +1,82 @@
+# Screening-question rules for Workday's "Application Questions" page.
+#
+# HOW IT WORKS
+#   A question is matched if EVERY keyword in `match` appears in the question text
+#   (case-insensitive). Rules are checked top to bottom; the first match wins.
+#   `answer` is the option to select — use "A|B|C" for ordered fallbacks (the first
+#   option that exists on the page is picked).
+#
+# WHAT IS *NOT* HERE (handled from your profile.yaml instead, never hardcoded):
+#   - visa sponsorship / work authorization / citizenship  -> profile `sensitive`
+#   - desired salary / start date / GPA / graduation date   -> profile `preferences`/education
+#   These are flagged for manual entry if your profile doesn't answer them.
+#
+# EDIT FREELY. The defaults below are common-but-not-universal. Change any answer
+# to fit your situation, or delete a rule to have that question flagged for you to
+# answer by hand in the browser. Every answer is shown in the review table and the
+# tool stops before Submit, so you can always override before anything is sent.
+
+rules:
+  # ── Generally safe for most applicants ──────────────────────────────────────
+  - { match: [legal age],          answer: "Yes" }
+  - { match: [18 years],           answer: "Yes" }
+  - { match: [age or older],       answer: "Yes" }
+  - { match: [background check],   answer: "Yes" }
+  - { match: [able to perform],    answer: "Yes" }
+  - { match: [able to work, relocate], answer: "Yes" }
+  - { match: [relocate],           answer: "Yes" }
+
+  # ── Prior/related employment (default: no) ──────────────────────────────────
+  - { match: [previously worked for], answer: "No" }
+  - { match: [worked for],         answer: "No" }
+  - { match: [worked at],          answer: "No" }
+  - { match: [current associate],  answer: "No" }
+  - { match: [current employee],   answer: "No" }
+  - { match: [related to anyone],  answer: "No" }
+  - { match: [close personal relationship], answer: "No" }
+  - { match: [familial relationship],  answer: "No" }
+  - { match: [familial relationships], answer: "No" }
+  - { match: [immediate family],   answer: "No" }
+
+  # ── Agreements / legal (review these for your situation) ────────────────────
+  - { match: [non-compete],          answer: "No" }
+  - { match: [non-disclosure],       answer: "No" }
+  - { match: [restrictive covenant], answer: "No" }
+  - { match: [post-employment],      answer: "No" }
+  - { match: [post employment],      answer: "No" }
+  - { match: [conflict of interest], answer: "No" }
+  - { match: [outside employment],   answer: "No" }
+  - { match: [engage with, contracts], answer: "No" }
+  - { match: [arbitration],          answer: "Yes" }   # change to "No" to decline arbitration
+
+  # ── Government / eligibility (default: no) ──────────────────────────────────
+  - { match: [government office],  answer: "No" }
+  - { match: [government agency],  answer: "No" }
+  - { match: [debarred],           answer: "No" }
+  - { match: [suspended, ineligible], answer: "No" }
+
+  # ── Discharge / prior process (default: no) ─────────────────────────────────
+  - { match: [involuntarily discharged], answer: "No" }
+  - { match: [asked to resign],    answer: "No" }
+  - { match: [interviewed before], answer: "No" }
+  - { match: [interviewed with],   answer: "No" }
+  - { match: [previously interviewed], answer: "No" }
+  - { match: [taken exam],         answer: "No" }
+  - { match: [taken any exam],     answer: "No" }
+
+  # ── Misc (default: no / none) ───────────────────────────────────────────────
+  - { match: [hold any certification],   answer: "No" }
+  - { match: [certifications do you hold], answer: "No" }
+  - { match: [clubs or org],       answer: "No" }
+  - { match: [organizations do you], answer: "No" }
+  - { match: [member of any],      answer: "No" }
+  - { match: [communication, preference], answer: "No" }
+  - { match: [future position],    answer: "No" }
+  - { match: [future opening],     answer: "No" }
+  - { match: [receive communication], answer: "No" }
+
+  # ── Location: pick a NEUTRAL option only; never assert a specific city ───────
+  - { match: [preferred, location],  answer: "No preference|No Preference|No preference at this time" }
+  - { match: [geographic, location], answer: "No preference|No Preference|No preference at this time" }
+  - { match: [preferred, geographic], answer: "No preference|No Preference|No preference at this time" }
+  - { match: [location preference],  answer: "No preference|No Preference|No preference at this time" }

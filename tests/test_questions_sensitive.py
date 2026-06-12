@@ -5,7 +5,30 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.questions import _sensitive_answer, _grad_date, _work_auth_answer, _yes_no, FLAG
+from src.questions import (
+    _sensitive_answer, _grad_date, _work_auth_answer, _yes_no, _answer_for,
+    load_rules, RULES, FLAG,
+)
+
+
+def test_screening_rules_yaml_loads():
+    rules = load_rules()
+    assert rules, "screening_rules.yaml should ship with rules"
+    assert rules == RULES
+    # every rule is (list-of-lowercase-keywords, non-empty answer)
+    for kws, ans in rules:
+        assert isinstance(kws, list) and kws and all(k == k.lower() for k in kws)
+        assert isinstance(ans, str) and ans
+
+
+def test_rules_answer_common_questions():
+    assert _answer_for("Are you at least 18 years of age?") == "Yes"
+    assert _answer_for("Do you have a non-compete agreement?") == "No"
+    assert _answer_for("Do you agree to arbitration?") == "Yes"
+
+
+def test_missing_rules_file_is_safe(tmp_path):
+    assert load_rules(tmp_path / "nope.yaml") == []
 
 
 def _profile(**sensitive):

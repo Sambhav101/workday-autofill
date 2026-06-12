@@ -28,8 +28,11 @@ logins to some cloud service.
 Workday's "Application Questions" page is where the tool is deliberately
 conservative, because some answers are legally binding:
 
-- **Common safe questions** (over 18, willing to do a background check, conflict-of-
-  interest, "have you worked here before") use keyword rules with fixed answers.
+- **Common questions** (over 18, background check, non-compete, arbitration,
+  "have you worked here before") use keyword rules in **`screening_rules.yaml`** — a
+  plain editable file. The shipped defaults are common-but-not-universal; change any
+  answer (e.g. arbitration), or delete a rule to have that question flagged for you
+  to answer by hand. No code editing required.
 - **Visa / work-authorization / citizenship** come straight from your
   `profile.yaml` `sensitive:` block (`work_authorization`, `requires_sponsorship`).
   If your profile doesn't clearly answer a question, it is **flagged for you to
