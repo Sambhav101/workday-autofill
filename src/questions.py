@@ -21,15 +21,16 @@ console = Console()
 
 _RESOLVER_THRESHOLD = 0.6
 
+# NOTE: visa sponsorship, work authorization, citizenship/permanent-residency,
+# salary, and location questions are NOT hardcoded here — they are answered from
+# the user's profile (or flagged for manual entry) by `_sensitive_answer` and the
+# text rules below. Putting fixed answers here would impose one person's situation
+# on every user, which on a legal application is a misrepresentation.
 RULES = [
-    (["sponsorship"], "No"),
     (["legal age"], "Yes"),
     (["background check"], "Yes"),
-    (["identity", "right to work"], "Yes"),
-    (["right to work"], "Yes"),
     (["able to work", "relocate"], "Yes"),
     (["relocate"], "Yes"),
-    (["authorized to work"], "Yes"),
     (["non-compete"], "No"),
     (["non-disclosure"], "No"),
     (["restrictive covenant"], "No"),
@@ -51,17 +52,10 @@ RULES = [
     (["arbitration"], "Yes"),
     (["current associate"], "No"),
     (["current employee"], "No"),
-    (["eligible for employment"], "Yes"),
-    (["legally eligible"], "Yes"),
     (["18 years"], "Yes"),
     (["age or older"], "Yes"),
     (["able to perform"], "Yes"),
     (["previously worked for"], "No"),
-    (["us citizen"], "No"),
-    (["permanent resident"], "No"),
-    (["refugee"], "No"),
-    (["asylum"], "No"),
-    (["citizen", "permanent resident"], "No"),
     (["interviewed before"], "No"),
     (["interviewed with"], "No"),
     (["previously interviewed"], "No"),
@@ -79,10 +73,13 @@ RULES = [
     (["future position"], "No"),
     (["future opening"], "No"),
     (["receive communication"], "No"),
-    (["preferred", "location"], "New York|No preference|No Preference"),
-    (["geographic", "location"], "New York|No preference|No Preference"),
-    (["preferred", "geographic"], "New York|No preference|No Preference"),
-    (["location preference"], "New York|No preference|No Preference"),
+    # Location: only auto-pick a NEUTRAL option ("No preference"); never assert a
+    # specific city. If no neutral option exists, it falls through to "option not
+    # found" and is flagged for manual entry.
+    (["preferred", "location"], "No preference|No Preference|No preference at this time"),
+    (["geographic", "location"], "No preference|No Preference|No preference at this time"),
+    (["preferred", "geographic"], "No preference|No Preference|No preference at this time"),
+    (["location preference"], "No preference|No Preference|No preference at this time"),
 ]
 
 
@@ -112,6 +109,89 @@ def _answer_for(question: str) -> str | None:
         if all(k in q for k in kws):
             return ans
     return None
+
+
+# Sentinel: the question IS a sensitive one (visa/citizenship/work-auth) but the
+# profile doesn't clearly answer it, so it must be flagged for the human — never guessed.
+FLAG = object()
+
+
+def _yes_no(value: str) -> str | None:
+    v = str(value).strip().lower()
+    if v in ("yes", "y", "true", "1"):
+        return "Yes"
+    if v in ("no", "n", "false", "0"):
+        return "No"
+    return None
+
+
+def _work_auth_answer(work_authorization: str) -> str | None:
+    """Map a free-text work_authorization to Yes/No for 'are you authorized to work'."""
+    t = str(work_authorization).strip().lower()
+    if not t:
+        return None
+    if any(n in t for n in ("not authorized", "not eligible", "no authorization", "unauthorized")):
+        return "No"
+    if any(p in t for p in ("authorized", "eligible", "citizen", "permanent resident",
+                            "green card", "yes")):
+        return "Yes"
+    return None
+
+
+def _sensitive_answer(question: str, profile: dict):
+    """Answer visa/work-auth/citizenship questions from the profile.
+
+    Returns a "Yes"/"No" string when the profile clearly answers it, FLAG when the
+    question is sensitive but the profile is silent (-> manual entry), or None when
+    the question isn't in this sensitive category (-> normal rules/LLM).
+    """
+    q = question.lower()
+    sens = profile.get("sensitive", {})
+    work_auth = sens.get("work_authorization", "")
+
+    # Visa sponsorship — driven purely by profile.requires_sponsorship
+    if "sponsorship" in q or ("sponsor" in q and "visa" in q):
+        ans = _yes_no(sens.get("requires_sponsorship", ""))
+        return ans if ans is not None else FLAG
+
+    # Work authorization / legally eligible / right to work
+    if any(k in q for k in ("authorized to work", "legally authorized", "legally eligible",
+                            "right to work", "eligible for employment")):
+        ans = _work_auth_answer(work_auth)
+        return ans if ans is not None else FLAG
+
+    # Citizenship / permanent residency — answer ONLY if the profile literally
+    # states it; do not infer citizenship from mere work authorization.
+    if "citizen" in q:
+        return "Yes" if "citizen" in str(work_auth).lower() else FLAG
+    if "permanent resident" in q or "green card" in q:
+        wa = str(work_auth).lower()
+        return "Yes" if ("permanent resident" in wa or "green card" in wa) else FLAG
+    if "refugee" in q or "asylum" in q:
+        return FLAG
+
+    return None
+
+
+_MONTHS = ["", "January", "February", "March", "April", "May", "June",
+           "July", "August", "September", "October", "November", "December"]
+
+
+def _grad_date(profile: dict) -> str:
+    """Graduation date as 'Month YYYY', from the current (or latest-ending) degree.
+    Returns '' if no education end date is set, so it gets flagged for manual entry."""
+    eds = profile.get("education") or []
+    chosen = next((e for e in eds if e.get("current")), None)
+    if chosen is None:
+        with_end = [e for e in eds if str(e.get("end", "")).strip()]
+        chosen = max(with_end, key=lambda e: str(e["end"]), default=None)
+    if not chosen:
+        return ""
+    end = str(chosen.get("end", "")).strip()
+    parts = end.split("-")
+    if len(parts) >= 2 and parts[1].isdigit() and 1 <= int(parts[1]) <= 12:
+        return f"{_MONTHS[int(parts[1])]} {parts[0]}"
+    return end
 
 
 def _read_open_options(page: Page) -> list[str]:
@@ -144,6 +224,7 @@ def _open_dropdown(page: Page, btn, *, retries: int = 2) -> bool:
 
 def fill_questions(page: Page, job_title: str = ""):
     results = []
+    profile = load_profile()
     btns = page.locator('button[aria-haspopup="listbox"]')
     for i in range(btns.count()):
         btn = btns.nth(i)
@@ -155,8 +236,16 @@ def fill_questions(page: Page, job_title: str = ""):
         q = _question_for(page, btn)
         if not q:
             continue
-        ans = _answer_for(q)
         short = q[:55]
+
+        # Sensitive questions (visa/work-auth/citizenship) come straight from the
+        # profile, or are flagged for manual entry — never from hardcoded answers.
+        sens = _sensitive_answer(q, profile)
+        if sens is FLAG:
+            results.append((short, "—", False,
+                            "SENSITIVE — answer manually (set it in profile.yaml or in Chrome)"))
+            continue
+        ans = sens if isinstance(sens, str) else _answer_for(q)
 
         if ans is None:
             # LLM resolver path: open dropdown, read options, ask Claude
@@ -202,39 +291,40 @@ def fill_questions(page: Page, job_title: str = ""):
         results.append((short, picked, ok, "selected" if ok else "option not found"))
 
     # ── text fields on the questions page ──────────────────────────────────
-    # Some tenants have free-text inputs (discharge explanation, desired salary).
-    # Discover them and fill with known defaults.
-    profile = load_profile()
+    # Free-text inputs (graduation date, GPA, desired salary, signature). Values
+    # come from the profile; a rule whose value resolves to "" is FLAGGED for
+    # manual entry rather than filled with an assumed default.
     prefs = profile.get("preferences", {})
     identity = profile.get("identity", {})
+    edu0 = (profile.get("education") or [{}])[0]
     full_name = f"{identity.get('first_name', '')} {identity.get('last_name', '')}".strip()
+    grad = _grad_date(profile)
+    salary = str(prefs.get("desired_salary", "")).strip()
+    start_date = str(prefs.get("earliest_start_date", "")).strip()
     TEXT_RULES = [
-        (["graduation", "date"], "June 2027"),
-        (["anticipated graduation"], "June 2027"),
-        (["expected graduation"], "June 2027"),
-        (["major"], profile.get("education", [{}])[0].get("field", "Computer Science")),
-        (["current gpa"], str(profile.get("education", [{}])[0].get("gpa", "3.5"))),
-        (["overall gpa"], str(profile.get("education", [{}])[0].get("gpa", "3.5"))),
-        (["cumulative gpa"], str(profile.get("education", [{}])[0].get("gpa", "3.5"))),
+        (["graduation", "date"], grad),
+        (["anticipated graduation"], grad),
+        (["expected graduation"], grad),
+        (["major"], str(edu0.get("field", ""))),
+        (["current gpa"], str(edu0.get("gpa", ""))),
+        (["overall gpa"], str(edu0.get("gpa", ""))),
+        (["cumulative gpa"], str(edu0.get("gpa", ""))),
         (["certification"], "None"),
         (["clubs"], "None"),
         (["organizations"], "None"),
         (["discharged", "suspended", "terminated", "resign"], "N/A"),
-        (["desired", "compensation"], prefs.get("desired_salary", "120000")),
-        (["desired", "salary"], prefs.get("desired_salary", "120000")),
-        (["expect to earn"], prefs.get("desired_salary", "120000")),
-        (["expected salary"], prefs.get("desired_salary", "120000")),
-        (["salary expectation"], prefs.get("desired_salary", "120000")),
-        (["compensation expectation"], prefs.get("desired_salary", "120000")),
-        (["earliest", "start"], prefs.get("earliest_start_date", "ASAP")),
-        (["desired", "start date"], prefs.get("earliest_start_date", "ASAP")),
-        (["start date"], prefs.get("earliest_start_date", "ASAP")),
+        (["desired", "compensation"], salary),
+        (["desired", "salary"], salary),
+        (["expect to earn"], salary),
+        (["expected salary"], salary),
+        (["salary expectation"], salary),
+        (["compensation expectation"], salary),
+        (["earliest", "start"], start_date),
+        (["desired", "start date"], start_date),
+        (["start date"], start_date),
         (["certify", "typing my name"], full_name),
         (["certify", "true and accurate"], full_name),
         (["electronic signature"], full_name),
-        (["preferred", "location"], "New York"),
-        (["geographic", "location"], "New York"),
-        (["location preference"], "New York"),
     ]
     fields = discover_fields(page)
     for f in fields:
@@ -247,8 +337,13 @@ def fill_questions(page: Page, job_title: str = ""):
         q_low = (q_text or label).lower()
         for kws, ans in TEXT_RULES:
             if all(k in q_low for k in kws):
-                ok, note = widgets.fill_text(page, f["aid"], str(ans))
-                results.append((q_low[:55], str(ans), ok, note))
+                val = str(ans).strip()
+                if not val:
+                    results.append((q_low[:55], "—", False,
+                                    "needs a value — set it in profile.yaml or answer manually"))
+                    break
+                ok, note = widgets.fill_text(page, f["aid"], val)
+                results.append((q_low[:55], val, ok, note))
                 break
 
     # checkbox: "Have you ever worked at [company]" -> "I have not worked..."

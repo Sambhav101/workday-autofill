@@ -20,11 +20,32 @@ logins to some cloud service.
   from your resume.
 - Detects Workday's fields and fills text, dropdowns, and cascading typeaheads,
   then prints a per-field review table so you see exactly what it set.
-- Free-text and screening questions go through a configurable LLM resolver — run
-  it on a local model (Ollama) or a hosted one — and low-confidence answers are
-  flagged rather than silently guessed.
 - `auto_submit` in `agent_config.yaml` controls the last step: leave it off to
   stop before Submit and review, or turn it on to submit automatically.
+
+## How questions get answered
+
+Workday's "Application Questions" page is where the tool is deliberately
+conservative, because some answers are legally binding:
+
+- **Common safe questions** (over 18, willing to do a background check, conflict-of-
+  interest, "have you worked here before") use keyword rules with fixed answers.
+- **Visa / work-authorization / citizenship** come straight from your
+  `profile.yaml` `sensitive:` block (`work_authorization`, `requires_sponsorship`).
+  If your profile doesn't clearly answer a question, it is **flagged for you to
+  answer manually** — never guessed. Citizenship is never inferred from work
+  authorization (being authorized to work ≠ being a citizen).
+- **Salary, graduation date, GPA, start date** come from your profile
+  (`preferences.desired_salary`, your education entries). Blank in the profile →
+  flagged, not filled with a made-up number.
+- **EEO / diversity** (gender, race, veteran, disability) are filled only from the
+  `sensitive:` block; leave a field blank to decline it. Nothing is ever guessed.
+- **Anything else** goes to an optional LLM resolver, grounded only in your profile.
+  Set `ANTHROPIC_API_KEY` to enable it (or point it at a local Ollama model in
+  `agent_config.yaml`). With no key, novel questions are flagged for manual entry.
+
+Every run prints a per-field review table and **stops before Submit** by default,
+so you can fix anything flagged before anything is sent.
 
 ## Setup
 
