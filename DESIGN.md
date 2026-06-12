@@ -29,7 +29,7 @@ submit, everything correct" with near-zero typing, and trusts the result enough 
 - **R1** Drive the user's *real* Chrome with their existing logins/cookies. 🟢
 - **R2** Fill, navigate multi-page Workday wizard, **pause before final Submit**. 🟢
 - **R3** Canonical profile data in one editable file (`profile.yaml`), seeded from resume PDF. 🟢
-- **R4** Use an LLM (Claude) to answer free-text / employer-specific screening questions from
+- **R4** Use an LLM (the LLM) to answer free-text / employer-specific screening questions from
   profile + job description, with **low-confidence answers flagged**, never silently guessed. 🟢
 - **R5** Never auto-answer legally/strategically sensitive fields (work authorization, visa
   sponsorship, criminal history, EEO/veteran/disability) without explicit user-set values.
@@ -52,7 +52,7 @@ flowchart TD
       ORCH[Orchestrator<br/>Workday flow state machine]
       CDP[Browser driver<br/>Playwright over CDP] 
       MAP[Field detector + mapper]
-      LLM[LLM field resolver<br/>Claude]
+      LLM[LLM field resolver<br/>the LLM]
       LOG[Audit log + review report]
       ORCH --> CDP
       CDP --> MAP
@@ -74,7 +74,7 @@ flowchart TD
 - **Field detector + mapper** — *why:* enumerates each page's inputs and classifies them by
   label/aria/autocomplete/placeholder into profile keys. Workday's custom dropdowns/date
   pickers aren't native `<select>`, so this needs Workday-aware widget handling (R6).
-- **LLM field resolver (Claude)** — *why:* free-text and screening questions can't be a
+- **LLM field resolver (the LLM)** — *why:* free-text and screening questions can't be a
   lookup table; needs reasoning over profile + JD. Returns answer + confidence; flags
   low-confidence and sensitive fields instead of guessing (R4, R5).
 - **Orchestrator / flow state machine** — *why:* Workday is a fixed wizard (My Information →
@@ -89,9 +89,9 @@ flowchart TD
 
 - **Python 3.12 + Playwright** — fastest LLM-adjacent automation stack; Playwright's
   `connect_over_cdp` is the clean path to drive real Chrome. 🟢
-- **Anthropic SDK (Claude Sonnet 4.6, `claude-sonnet-4-6`)** for the field resolver — fast
+- **an LLM SDK (a hosted LLM, `claude-sonnet-4-6`)** for the field resolver — fast
   and cheap, strong enough for form answers. 🟢
-- **PyYAML** for profile; **resume parsing = LLM-drafted** (extract PDF text, hand to Claude
+- **PyYAML** for profile; **resume parsing = LLM-drafted** (extract PDF text, hand to the LLM
   to draft `profile.yaml`, user corrects). 🟢
 - **Rich/CLI** for the review report. Prototype is a CLI script, not a GUI.
 
@@ -161,8 +161,8 @@ fill engine works.
 
 ### Problem & goals
 
-Running the pipeline through Claude Code works but burns ~70% API usage for 7 jobs because
-the *orchestration* (read errors, decide next step, debug) runs through Claude's context
+Running the pipeline through the agent harness works but burns ~70% API usage for 7 jobs because
+the *orchestration* (read errors, decide next step, debug) runs through the LLM's context
 window. The actual automation code is 95% rule-based — only ~5% needs an LLM (the question
 resolver). We need a local agent that can orchestrate the pipeline for free.
 
@@ -170,7 +170,7 @@ resolver). We need a local agent that can orchestrate the pipeline for free.
 1. Accept job URLs and run the apply pipeline end-to-end
 2. Handle errors/blockers by reading output and deciding next steps
 3. Answer "what does X do" questions about the codebase via RAG
-4. Fall back to Claude API only for the question resolver (configurable)
+4. Fall back to the hosted LLM only for the question resolver (configurable)
 5. Pause for human input on email verification and password resets (never automated)
 
 **Success =** user types a job URL into a local CLI, the agent runs the full pipeline
@@ -179,7 +179,7 @@ without any paid API calls (except optional resolver), and handles common errors
 
 ### Non-goals
 
-- ❌ Replacing Claude resolver entirely (keep as option, add Ollama alternative)
+- ❌ Replacing the LLM resolver entirely (keep as option, add Ollama alternative)
 - ❌ Email/password automation by the agent (security risk — stays human-in-the-loop)
 - ❌ Building a GUI or web interface (CLI-first)
 - ❌ Fine-tuning a model on Workday forms (tool-use + RAG is sufficient)
@@ -202,7 +202,7 @@ flowchart TD
       APPLY[src.apply — _run_one / run_batch]
       FILL[src.fill / experience / questions]
       RECORD[src.record — applications.yaml]
-      RESOLVER[src.resolver — Claude API<br/>optional, for unrecognized questions]
+      RESOLVER[src.resolver — the hosted LLM<br/>optional, for unrecognized questions]
     end
 
     TOOLS --> APPLY
@@ -294,17 +294,17 @@ Two agent backends, user picks via config:
 - Cost: $0. Runs entirely local.
 - Tradeoff: May struggle with complex error debugging. Upgrade to 70B if needed.
 
-**2. Claude API (cheap, smart)**
-- Model: `claude-sonnet-4-6` via Anthropic SDK with tool-use
+**2. the hosted LLM (cheap, smart)**
+- Model: `claude-sonnet-4-6` via an LLM SDK with tool-use
 - Cost: ~$0.01-0.03 per application (~5-10K tokens per job)
-- Tradeoff: Requires API key, but 100x cheaper than Claude Code because
+- Tradeoff: Requires API key, but 100x cheaper than the agent harness because
   context is focused (system prompt + tools, no file reads/edits)
-- Why cheaper than Claude Code: Claude Code runs on Opus with full conversation
+- Why cheaper than the agent harness: the agent harness runs on Opus with full conversation
   context (file reads, edits, all debug output). The API agent has a ~3K token
   system prompt, calls tools, gets structured results. Each job is an independent
   short conversation, not an ever-growing context window.
 
-**For the question resolver:** Stays as Claude API by default. Optionally swap to
+**For the question resolver:** Stays as the hosted LLM by default. Optionally swap to
 Ollama (`resolver_backend: claude | ollama`) — but 8B models may not be reliable
 enough for nuanced question answering with confidence scores.
 
@@ -341,7 +341,7 @@ max_concurrent_jobs: 1
 - **Fine-tuning on Workday forms** — rejected: tool-use is sufficient, and fine-tuning
   would need training data we don't have. The existing pipeline code handles form filling;
   the model just needs to orchestrate.
-- **MCP server** — considered: would let any MCP-compatible client (Claude Desktop, etc.)
+- **MCP server** — considered: would let any MCP-compatible client (the LLM Desktop, etc.)
   use our tools. Good v2.1 addition but adds complexity for the initial build.
 
 ### Rollout plan
@@ -349,9 +349,9 @@ max_concurrent_jobs: 1
 1. **Tool registry + agent loop** — get a basic loop working with 3 tools (apply, check_page, list_applications)
 2. **RAG index** — index docs, wire up search_codebase tool
 3. **Error handling** — agent reads pipeline errors and retries/adjusts
-4. **Resolver backend swap** — make resolver.py support Ollama as alternative to Claude
+4. **Resolver backend swap** — make resolver.py support Ollama as alternative to the LLM
 5. **CLI entry point** — `python -m src.agent` starts the interactive agent
-6. **Test against 3-4 real jobs** — validate end-to-end without Claude Code
+6. **Test against 3-4 real jobs** — validate end-to-end without the agent harness
 
 ### Open questions
 
@@ -361,7 +361,7 @@ max_concurrent_jobs: 1
 
 ## Settled decisions (resolved from open questions)
 
-1. ✅ **LLM model:** Claude Sonnet 4.6 (`claude-sonnet-4-6`).
+1. ✅ **LLM model:** a hosted LLM (`claude-sonnet-4-6`).
 2. ✅ **Resume parsing:** LLM-drafted from extracted PDF text → user corrects.
 3. ✅ **Prototype target:** a real live Workday job URL the user provides.
 4. ✅ **Sensitive fields blocklist** (work auth, visa sponsorship, criminal history,
