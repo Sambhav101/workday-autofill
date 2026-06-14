@@ -210,6 +210,38 @@ By default the tool **stops before the final Submit** (`auto_submit: false` in
 ./venv/bin/pytest   # run the tests; the CDP test auto-skips if no debug Chrome is running
 ```
 
+## Web UI (queue jobs, run from another device)
+
+Instead of the CLI you can drive everything from a browser — paste URLs, hit
+Run, watch them submit:
+
+```bash
+./venv/bin/python -m src.web          # Windows: .\venv\Scripts\python -m src.web
+```
+
+By default it binds to **all interfaces** so you can add jobs from another
+device on the same network (e.g. queue from your Mac while the agent runs on the
+Windows/GPU box). On startup it prints a **Local** and a **Network** URL plus an
+**auth token**:
+
+```
+  → Local:   http://127.0.0.1:8000/?token=ZFuxnd-voYCN0ZH5hTnyMA
+  → Network: http://192.168.1.99:8000/?token=ZFuxnd-voYCN0ZH5hTnyMA
+
+  Auth token: ZFuxnd-voYCN0ZH5hTnyMA
+```
+
+Open the **Network** URL on your other device — the token is embedded, so it
+logs in once and remembers it. The token gates the API (which drives a
+logged-in browser session), so don't run exposed on untrusted Wi-Fi without it.
+
+```bash
+python -m src.web --host 127.0.0.1    # local-only, no token
+python -m src.web --token mysecret     # pin your own token
+python -m src.web --no-auth            # disable auth (not recommended when exposed)
+python -m src.web --port 8137          # change the port
+```
+
 ## Status
 
 Early but working: it connects to real Chrome, detects Workday fields, and fills

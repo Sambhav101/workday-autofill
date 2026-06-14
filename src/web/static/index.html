@@ -164,11 +164,42 @@
 <script>
 const API = '';
 
+// --- Auth token (LAN access, issue #1) -----------------------------------
+// The Network URL carries ?token=...; stash it, then clean the address bar.
+(function bootstrapToken() {
+  const u = new URL(window.location.href);
+  const t = u.searchParams.get('token');
+  if (t) {
+    localStorage.setItem('wf_token', t);
+    u.searchParams.delete('token');
+    window.history.replaceState({}, '', u.pathname + u.search + u.hash);
+  }
+})();
+
+function authToken() { return localStorage.getItem('wf_token') || ''; }
+
+async function authFetch(url, opts = {}) {
+  const tok = authToken();
+  if (tok) {
+    opts.headers = { ...(opts.headers || {}), 'X-Auth-Token': tok };
+  }
+  const resp = await fetch(url, opts);
+  if (resp.status === 401) {
+    addLog('Unauthorized — open the Network URL with its ?token=... again', 'error');
+  }
+  return resp;
+}
+
+function eventsUrl() {
+  const tok = authToken();
+  return `${API}/api/events${tok ? `?token=${encodeURIComponent(tok)}` : ''}`;
+}
+
 async function addUrls() {
   const text = document.getElementById('urlInput').value.trim();
   if (!text) return;
   const urls = text.split('\n').map(u => u.trim()).filter(u => u);
-  const resp = await fetch(`${API}/api/queue/add`, {
+  const resp = await authFetch(`${API}/api/queue/add`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ urls })
   });
@@ -181,7 +212,7 @@ async function addUrls() {
 async function runAgent() {
   const backend = document.getElementById('backend').value;
   const autoSubmit = document.getElementById('autoSubmit').checked;
-  const resp = await fetch(`${API}/api/run`, {
+  const resp = await authFetch(`${API}/api/run`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ backend, auto_submit: autoSubmit })
   });
@@ -194,17 +225,17 @@ async function runAgent() {
 }
 
 async function stopAgent() {
-  await fetch(`${API}/api/stop`, { method: 'POST' });
+  await authFetch(`${API}/api/stop`, { method: 'POST' });
   addLog('Stop requested', 'info');
 }
 
 async function clearDone() {
-  await fetch(`${API}/api/queue/clear-done`, { method: 'POST' });
+  await authFetch(`${API}/api/queue/clear-done`, { method: 'POST' });
   refreshQueue();
 }
 
 async function clearAll() {
-  await fetch(`${API}/api/queue/clear`, { method: 'POST' });
+  await authFetch(`${API}/api/queue/clear`, { method: 'POST' });
   refreshQueue();
 }
 
@@ -219,7 +250,7 @@ function addLog(msg, cls='') {
 }
 
 async function refreshQueue() {
-  const resp = await fetch(`${API}/api/queue`);
+  const resp = await authFetch(`${API}/api/queue`);
   const queue = await resp.json();
   const list = document.getElementById('queueList');
   const queued = queue.filter(q => q.status === 'queued').length;
@@ -242,7 +273,7 @@ async function refreshQueue() {
 }
 
 async function refreshApps() {
-  const resp = await fetch(`${API}/api/applications`);
+  const resp = await authFetch(`${API}/api/applications`);
   const apps = await resp.json();
   document.getElementById('appCount').textContent = apps.length;
   const body = document.getElementById('appBody');
@@ -260,7 +291,7 @@ async function refreshApps() {
 
 // SSE: live updates from the runner
 function connectEvents() {
-  const es = new EventSource(`${API}/api/events`);
+  const es = new EventSource(eventsUrl());
   es.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
