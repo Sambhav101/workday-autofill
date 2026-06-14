@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from ..record import _load as load_applications
+from . import auth
 from . import queue as Q
 from . import runner
 
@@ -21,6 +23,17 @@ app = FastAPI(title="Workday Autofill")
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.middleware("http")
+async def auth_gate(request: Request, call_next):
+    """Gate /api/* behind the shared token when one is active (LAN exposure)."""
+    active = os.environ.get(auth.ENV_VAR)
+    if active and not auth.is_public(request.url.path):
+        provided = auth.request_token(request.headers, request.query_params)
+        if provided != active:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
