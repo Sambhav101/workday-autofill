@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --dim: #484f58;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    width: 320px; padding: 14px; font-size: 13px;
+  }
+  h1 { font-size: 14px; margin-bottom: 2px; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+  .url {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px; font-family: monospace; font-size: 11px; word-break: break-all;
+    margin-bottom: 4px; max-height: 60px; overflow-y: auto;
+  }
+  .ats { font-size: 11px; margin-bottom: 10px; min-height: 14px; }
+  .ats.ok { color: var(--green); }
+  .ats.no { color: var(--muted); }
+  button {
+    width: 100%; padding: 9px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 600; background: var(--accent); color: #fff;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status { margin-top: 10px; font-size: 12px; min-height: 16px; }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+  .gear {
+    margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;
+  }
+  .gear summary { color: var(--muted); font-size: 11px; cursor: pointer; list-style: none; }
+  .gear summary::-webkit-details-marker { display: none; }
+  .gear label { display: block; color: var(--muted); font-size: 11px; margin: 8px 0 3px; }
+  .gear input {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px; font-size: 12px;
+    font-family: monospace;
+  }
+  .gear .save {
+    margin-top: 10px; background: transparent; color: var(--muted);
+    border: 1px solid var(--border); font-weight: 500; padding: 6px;
+  }
+  .saved { color: var(--green); font-size: 11px; margin-left: 8px; }
+</style>
+</head>
+<body>
+  <h1>Workday Autofill</h1>
+  <div class="sub">Add this page to your queue</div>
+
+  <div class="url" id="url">…</div>
+  <div class="ats" id="ats"></div>
+
+  <button id="addBtn">Add to Queue</button>
+  <div class="status" id="status"></div>
+
+  <details class="gear" id="gear">
+    <summary>⚙︎ Server settings</summary>
+    <label for="baseUrl">Server URL</label>
+    <input id="baseUrl" placeholder="http://localhost:8000" spellcheck="false">
+    <label for="token">Auth token (if exposed on LAN)</label>
+    <input id="token" placeholder="(leave blank for local)" spellcheck="false">
+    <button class="save" id="saveBtn">Save<span class="saved" id="saved"></span></button>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>
