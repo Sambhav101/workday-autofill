@@ -20,3 +20,8 @@ def test_unknown_host():
 
 def test_garbage_url():
     assert detect_ats("not a url") == "unknown"
+
+
+def test_lever_and_workday_distinct():
+    assert detect_ats("https://jobs.lever.co/x/y/apply") != detect_ats(
+        "https://x.myworkdayjobs.com/job")
