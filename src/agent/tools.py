@@ -39,6 +39,11 @@ def _cleanup():
 # ── tool implementations ───────────────────────────────────────────────────
 
 def _apply_to_job(url: str) -> dict:
+    from ..ats import detect_ats
+    if detect_ats(url) == "lever":
+        from ..ats.lever import apply_one
+        page = _get_page()
+        return apply_one(url, auto_submit=True, page=page)
     from ..apply import _run_one
     page = _get_page()
     page.goto(url)
