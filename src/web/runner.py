@@ -56,18 +56,21 @@ def run_queue(backend: str = "direct", auto_submit: bool = True):
 
     def _worker():
         global _running, _stop_flag
+        from ..ats import dispatch, keeps_tab_open
+        from ..ats.notify import notify
+        needs_you = 0
+        submitted = 0
         try:
             pw = sync_playwright().start()
             b = browser.connect(pw)
-            page = browser.find_any_tab(b)
-            if not page:
-                _emit("error", {"message": "No Chrome tab available"})
+            ctx = b.contexts[0] if b.contexts else None
+            if ctx is None:
+                _emit("error", {"message": "No browser context available"})
                 return
 
             while not _stop_flag:
                 queued = Q.get_queued()
                 if not queued:
-                    _emit("done", {"message": "All jobs processed"})
                     break
 
                 job = queued[0]
@@ -75,21 +78,38 @@ def run_queue(backend: str = "direct", auto_submit: bool = True):
                 Q.update_status(url, "running")
                 _emit("status", {"url": url, "status": "running"})
 
+                page = ctx.new_page()
                 try:
-                    from ..ats import dispatch
                     result = dispatch(page, url, auto_submit=auto_submit).to_dict()
                     status = result.get("status", "error")
                     reason = result.get("reason", "")
-                    title = result.get("title", "")
                     Q.update_status(url, status, reason)
                     _emit("result", {
                         "url": url, "status": status, "reason": reason,
-                        "title": title, "tenant": result.get("tenant", ""),
+                        "title": result.get("title", ""), "tenant": result.get("tenant", ""),
                     })
                 except Exception as e:
+                    status = "error"
                     Q.update_status(url, "error", str(e))
                     _emit("result", {"url": url, "status": "error", "reason": str(e)[:200]})
 
+                if status == "submitted":
+                    submitted += 1
+                if keeps_tab_open(status):
+                    needs_you += 1
+                else:
+                    try:
+                        page.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+            print(f"[autofill] Queue finished — {needs_you} need you, {submitted} submitted",
+                  flush=True)
+            notify("Autofill finished",
+                   f"{needs_you} job(s) need you — solve captcha / review & submit"
+                   if needs_you else "All queued jobs processed.")
+            _emit("done", {"message": "All jobs processed",
+                           "needs_you": needs_you, "submitted": submitted})
             b.close()
             pw.stop()
         except Exception as e:
