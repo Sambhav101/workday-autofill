@@ -226,9 +226,11 @@ def apply_one(url: str | None = None, *, auto_submit: bool = False, page=None) -
         page = browser.find_any_tab(b)
 
     def _finish(result: dict) -> dict:
-        if own_browser and b:
-            b.close()
-            pw.stop()
+        if own_browser:
+            if b:
+                b.close()
+            if pw:
+                pw.stop()
         return result
 
     try:
