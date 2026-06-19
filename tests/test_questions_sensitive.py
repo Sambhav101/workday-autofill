@@ -91,3 +91,18 @@ def test_yes_no_and_work_auth_helpers():
     assert _yes_no("YES") == "Yes" and _yes_no("n") == "No" and _yes_no("maybe") is None
     assert _work_auth_answer("not authorized to work") == "No"
     assert _work_auth_answer("") is None
+
+
+def test_work_auth_answer_handles_yaml_boolean():
+    # YAML parses unquoted `Yes`/`No` as booleans; the mapper must still resolve them.
+    assert _work_auth_answer(True) == "Yes"
+    assert _work_auth_answer(False) == "No"
+    assert _work_auth_answer("Yes") == "Yes"
+    # free-text still works
+    assert _work_auth_answer("Authorized to work in the US") == "Yes"
+    assert _work_auth_answer("not authorized") == "No"
+
+
+def test_sensitive_work_auth_from_boolean_profile():
+    profile = {"sensitive": {"work_authorization": True}}
+    assert _sensitive_answer("Are you legally authorized to work in the US?", profile) == "Yes"

@@ -113,6 +113,40 @@ def fill_application(page, profile: dict) -> list[str]:
             el.fill(value)
         elif _is_required(el):
             flags.append(f"{label!r}: needs manual answer")
+
+    # 4. Yes/No widgets (work-auth, sponsorship, etc.) — see _fill_yesno_fields
+    flags += _fill_yesno_fields(page, profile)
+    return flags
+
+
+def _fill_yesno_fields(page, profile: dict) -> list[str]:
+    """Answer Ashby Yes/No widgets. Each is
+        <div _yesno><button>Yes</button><button>No</button><input type=checkbox></div>
+    with the question in the field's <label> (no for/id hook). Match the question via
+    the question engine and click the matching button. Required-but-unanswerable → flag."""
+    flags: list[str] = []
+    widgets = page.locator('[class*="_yesno"]')
+    for i in range(widgets.count()):
+        w = widgets.nth(i)
+        question = w.evaluate("""el => {
+            const fe = el.closest('[class*="fieldEntry"]') || el.parentElement;
+            const lab = fe && fe.querySelector('label');
+            return (lab ? lab.innerText : (fe ? fe.innerText : '')).trim();
+        }""")
+        if not question:
+            continue
+        ans = _sensitive_answer(question, profile)
+        if ans is None:
+            ans = _answer_for(question)
+        cb = w.locator('input[type="checkbox"]')
+        required = bool(cb.count()) and _is_required(cb.first)
+        if ans not in ("Yes", "No"):  # FLAG, None, or a non-yes/no rule answer
+            if required:
+                flags.append(f"{question[:50]!r}: needs manual answer")
+            continue
+        btn = w.get_by_role("button", name=ans, exact=True)
+        if btn.count():
+            btn.first.click()
     return flags
 
 
@@ -130,7 +164,12 @@ def missing_required(page) -> list[str]:
             if lab.count():
                 label = lab.first.inner_text().strip()
         label = label or fid or "unknown"
-        if (el.get_attribute("type") or "").lower() == "file":
+        typ = (el.get_attribute("type") or "").lower()
+        if typ == "checkbox":
+            # Yes/No widgets are handled (and required-flagged) by _fill_yesno_fields;
+            # a hidden checkbox can't distinguish "No" from unanswered, so skip here.
+            continue
+        if typ == "file":
             if not el.evaluate("e => !!(e.files && e.files.length)"):
                 missing.append(label)
             continue

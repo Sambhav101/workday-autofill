@@ -99,6 +99,10 @@ def _work_auth_answer(work_authorization: str) -> str | None:
     t = str(work_authorization).strip().lower()
     if not t:
         return None
+    # Handle plain booleans / yes-no values first (YAML parses unquoted `Yes` as True).
+    yn = _yes_no(t)
+    if yn is not None:
+        return yn
     if any(n in t for n in ("not authorized", "not eligible", "no authorization", "unauthorized")):
         return "No"
     if any(p in t for p in ("authorized", "eligible", "citizen", "permanent resident",
