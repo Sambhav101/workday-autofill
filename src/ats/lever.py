@@ -6,6 +6,8 @@ optionally auto-submit. Standalone — not behind an ATSDriver interface yet.
 """
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from ..questions import _answer_for, _sensitive_answer, FLAG
 from ..experience import upload_resume
 
@@ -26,6 +28,14 @@ def current_company(profile: dict) -> str:
         with_end = [j for j in jobs if str(j.get("end", "")).strip()]
         current = max(with_end, key=lambda j: str(j["end"]), default=jobs[0])
     return current.get("company", "")
+
+
+def lever_job_meta(url: str) -> dict:
+    """Derive company/tenant/job_id from a Lever URL path: jobs.lever.co/<employer>/<job-id>."""
+    parts = [p for p in urlparse(url).path.split("/") if p and p != "apply"]
+    company = parts[0] if parts else ""
+    job_id = parts[1] if len(parts) >= 2 else ""
+    return {"company": company, "tenant": company, "job_id": job_id}
 
 
 def standard_field_values(profile: dict) -> dict[str, str]:
@@ -215,6 +225,7 @@ def apply_one(url: str | None = None, *, auto_submit: bool = False, page=None) -
             page.wait_for_timeout(3000)
         profile = load_profile()
         job = parse_job(page.url, page)
+        job.update(lever_job_meta(page.url))
         job["url"] = page.url.split("?")[0]
 
         flags = fill_application(page, profile)
