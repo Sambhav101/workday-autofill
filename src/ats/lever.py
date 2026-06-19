@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
+from .base import ApplyResult
 from ..questions import _answer_for, _sensitive_answer, FLAG
 from ..experience import upload_resume
 
@@ -315,6 +316,13 @@ def _notify(title: str, message: str) -> None:
         )
     except Exception:  # noqa: BLE001
         pass
+
+
+class LeverDriver:
+    name = "lever"
+
+    def apply(self, page, url: str, *, auto_submit: bool) -> ApplyResult:
+        return ApplyResult.from_dict(apply_one(url, auto_submit=auto_submit, page=page))
 
 
 if __name__ == "__main__":
