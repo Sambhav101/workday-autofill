@@ -171,8 +171,9 @@ def missing_required(page) -> list[str]:
             continue
         el = field.first
         if el.get_attribute("type") == "file":
-            # resume: Lever shows an "uploaded" indicator; treat presence of a value as ok
-            if not li.locator('.filename, [class*="resume"]').count():
+            # resume present iff the input actually has a file queued
+            has_file = el.evaluate("e => !!(e.files && e.files.length)")
+            if not has_file:
                 missing.append(label)
             continue
         if not (el.input_value() or "").strip():
@@ -219,7 +220,7 @@ def apply_one(url: str | None = None, *, auto_submit: bool = False, page=None) -
         flags = fill_application(page, profile)
         missing = missing_required(page)
         if flags or missing:
-            reason = f"Unanswered required fields: {missing or flags}"
+            reason = f"Unanswered required fields — missing: {missing}; flagged: {flags}"
             return _finish({"status": "blocked", "reason": reason, **job})
 
         if not auto_submit:
