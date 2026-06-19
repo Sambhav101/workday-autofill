@@ -2,7 +2,7 @@
 Navigation + the apply-button/sign-in pre-flow already live inside _run_one."""
 from __future__ import annotations
 
-from .base import ApplyResult, ATSDriver
+from .base import ApplyResult
 
 
 class WorkdayDriver:
