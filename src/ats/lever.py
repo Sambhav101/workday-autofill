@@ -7,6 +7,7 @@ optionally auto-submit. Standalone — not behind an ATSDriver interface yet.
 from __future__ import annotations
 
 from ..questions import _answer_for, _sensitive_answer, FLAG
+from ..experience import upload_resume
 
 
 def full_name(profile: dict) -> str:
@@ -82,3 +83,64 @@ def choose_checkbox(question_label: str, option_labels: list[str], profile: dict
         if opt.strip().lower() == target:
             return opt
     return None
+
+
+def _fill_text_by_name(page, name: str, value: str) -> bool:
+    loc = page.locator(f'[name="{name}"]')
+    if not loc.count():
+        return False
+    loc.first.fill(value)
+    return True
+
+
+def _custom_cards(page):
+    """Yield (card_li, label_text, kind, inputs_locator) for each custom question.
+    kind is 'text', 'textarea', or 'checkbox'."""
+    cards = page.locator('li[class*="application-question"], ul.application-additional li')
+    results = []
+    for i in range(cards.count()):
+        li = cards.nth(i)
+        label = (li.locator('.application-label, label').first.inner_text()
+                 if li.locator('.application-label, label').count() else "").strip()
+        if not label:
+            continue
+        if li.locator('input[type="checkbox"]').count():
+            results.append((li, label, "checkbox"))
+        elif li.locator('textarea').count():
+            results.append((li, label, "textarea"))
+        elif li.locator('input[type="text"]').count():
+            results.append((li, label, "text"))
+    return results
+
+
+def fill_application(page, profile: dict) -> list[str]:
+    flags: list[str] = []
+
+    # 1. Standard fields by stable name
+    for name, value in standard_field_values(profile).items():
+        _fill_text_by_name(page, name, value)
+
+    # 2. Resume upload (reuses Workday uploader; same input[type=file] pattern)
+    upload_resume(page, profile.get("resume_path", ""))
+
+    # 3. Custom questions by label
+    for li, label, kind in _custom_cards(page):
+        if kind == "checkbox":
+            opts = li.locator('input[type="checkbox"]')
+            opt_labels = [li.locator('input[type="checkbox"]').nth(j)
+                          .locator('xpath=following-sibling::*[1]').inner_text().strip()
+                          for j in range(opts.count())]
+            pick = choose_checkbox(label, opt_labels, profile)
+            if pick is None:
+                flags.append(f"{label!r}: no checkbox match")
+                continue
+            idx = opt_labels.index(pick)
+            opts.nth(idx).check()
+        else:
+            ans = answer_custom(label, profile)
+            if ans is FLAG or ans is None:
+                flags.append(f"{label!r}: needs manual answer")
+                continue
+            sel = 'textarea' if kind == "textarea" else 'input[type="text"]'
+            li.locator(sel).first.fill(str(ans))
+    return flags
