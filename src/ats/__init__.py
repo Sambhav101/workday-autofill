@@ -41,6 +41,14 @@ def dispatch(page, url: str, *, auto_submit: bool) -> ApplyResult:
     return driver.apply(page, url, auto_submit=auto_submit)
 
 
+_KEEP_OPEN = {ApplyStatus.CAPTCHA, ApplyStatus.REVIEW, ApplyStatus.BLOCKED}
+
+
+def keeps_tab_open(status) -> bool:
+    """True if a job's outcome needs the human, so its tab should stay open for review."""
+    return ApplyStatus(status) in _KEEP_OPEN
+
+
 def run_batch(urls: list[str], *, auto_submit: bool = True) -> list[ApplyResult]:
     """Apply to multiple jobs across any supported ATS. Errors are logged, not raised."""
     from pathlib import Path
