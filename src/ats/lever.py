@@ -94,9 +94,9 @@ def _fill_text_by_name(page, name: str, value: str) -> bool:
 
 
 def _custom_cards(page):
-    """Yield (card_li, label_text, kind, inputs_locator) for each custom question.
+    """Return list of (card_li, label_text, kind) for each custom question.
     kind is 'text', 'textarea', or 'checkbox'."""
-    cards = page.locator('li[class*="application-question"], ul.application-additional li')
+    cards = page.locator('li.application-question.custom-question')
     results = []
     for i in range(cards.count()):
         li = cards.nth(i)
