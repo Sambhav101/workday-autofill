@@ -174,9 +174,31 @@ URL (jobs.lever.co/...)
 3. Once Lever is proven, open the follow-up spec to extract the `ATSDriver`
    interface from Workday + Lever, then add Greenhouse and Ashby.
 
-## Open questions
+## Live verification findings (2026-06-19, Hive ML Engineer posting)
 
-- Default answer for "How did you hear about us?" — proposed default "LinkedIn",
-  overridable in config. Confirm during implementation.
-- Resume file path source in `profile.yaml` — confirm the existing key used by
-  `experience.py` and reuse it.
+Ran end-to-end with `--no-submit` against the live form. Result: `REVIEW` — all
+standard fields, resume (Lever reported "Success"), GPA, sponsorship, and the
+"How did you hear" → LinkedIn checkbox filled correctly. Three issues surfaced only
+under live run (all fixed):
+
+1. **hCaptcha blocks true auto-submit.** The form carries an hCaptcha drag-puzzle.
+   No form-filling defeats it programmatically, so on captcha-protected Lever forms
+   **fill-then-stop-for-review is the only viable mode** — the `auto_submit` path
+   will reach the captcha and fail. This revises the auto-submit goal: treat it as
+   best-effort, expect to fall back to review on captcha forms. (Its iframe overlay
+   also intercepts coordinate-clicks, so checkboxes are now toggled via a JS click
+   dispatched directly on the input.)
+2. **Optional questions must not block.** Flagging *any* unanswerable custom question
+   (e.g. the optional "If Other, please specify") blocked submit. Fixed: only
+   required (`✱`) fields flag/block; `missing_required` remains the authoritative gate.
+3. **"Current location" is a Places autocomplete** that rewrites the typed value
+   (typed "Port Jefferson, NY" → resolved "New York, NY"). It is optional and the
+   resolved NY value is acceptable, so left as-is for the spike; proper autocomplete
+   handling is deferred to the interface phase.
+
+## Open questions (resolved)
+
+- Default answer for "How did you hear about us?" — uses `preferences.how_did_you_hear`
+  ("Job Board > LinkedIn"), last path segment matched against the options → "LinkedIn".
+- Resume file path source — `profile.yaml: resume_path`, uploaded via the existing
+  `experience.py:upload_resume`.
