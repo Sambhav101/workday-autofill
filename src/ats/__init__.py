@@ -64,13 +64,15 @@ def run_batch(urls: list[str], *, auto_submit: bool = True) -> list[ApplyResult]
 
     with sync_playwright() as pw:
         b = browser.connect(pw)
-        page = browser.find_any_tab(b)
-        if not page:
-            console.print("[red]No Chrome tab available.[/red]")
+        ctx = b.contexts[0] if b.contexts else None
+        if ctx is None:
+            console.print("[red]No browser context available.[/red]")
             return results
 
+        needs_you = 0
         for i, url in enumerate(urls, 1):
             console.rule(f"[bold]Job {i}/{len(urls)}[/bold]")
+            page = ctx.new_page()
             try:
                 result = dispatch(page, url, auto_submit=auto_submit)
             except Exception as e:  # noqa: BLE001
@@ -84,8 +86,20 @@ def run_batch(urls: list[str], *, auto_submit: bool = True) -> list[ApplyResult]
             console.print(f"[{color}]{line}: {result.reason}[/{color}]")
             report_path.write_text(yaml.safe_dump(
                 [r.to_dict() for r in results], default_flow_style=False, sort_keys=False))
+            if keeps_tab_open(result.status):
+                needs_you += 1
+            else:
+                try:
+                    page.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
         b.close()
+
+    from .notify import notify
+    notify("Autofill finished",
+           f"{needs_you} job(s) need you — solve captcha / review & submit"
+           if needs_you else "All jobs processed.")
 
     console.rule("[bold]Batch Summary[/bold]")
     table = Table()
