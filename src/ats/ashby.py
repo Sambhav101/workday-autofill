@@ -10,7 +10,8 @@ from urllib.parse import urlparse
 
 from .base import ApplyResult
 from .captcha import has_captcha
-from .lever import full_name, current_company, _notify
+from .lever import full_name, current_company
+from .notify import notify
 from ..questions import _answer_for, _sensitive_answer, FLAG
 
 
@@ -279,8 +280,8 @@ def main():
     result = apply_one(args.url, auto_submit=auto)
     print(result["status"].upper(), "-", result["reason"])
     if result["status"] == "captcha":
-        _notify("Ashby: CAPTCHA — action needed",
-                f"{result.get('company', 'job')} filled. Solve the captcha and submit.")
+        notify("Ashby: CAPTCHA — action needed",
+               f"{result.get('company', 'job')} filled. Solve the captcha and submit.")
 
 
 if __name__ == "__main__":
