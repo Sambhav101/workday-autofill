@@ -46,3 +46,18 @@ def test_dispatch_routes_to_workday(monkeypatch):
     r = dispatch(FakePage(), "https://acme.wd5.myworkdayjobs.com/job/x", auto_submit=False)
     assert r.status is ApplyStatus.REVIEW
     assert r.job["tenant"] == "acme"
+
+
+def test_driver_for_maps_ashby():
+    from src.ats.ashby import AshbyDriver
+    assert isinstance(driver_for("https://jobs.ashbyhq.com/voleon/abc/application"), AshbyDriver)
+
+
+def test_dispatch_routes_to_ashby(monkeypatch):
+    import src.ats.ashby as ashby_mod
+    monkeypatch.setattr(ashby_mod, "apply_one",
+                        lambda url=None, *, auto_submit=False, page=None:
+                        {"status": "captcha", "reason": "solve it", "company": "voleon"})
+    r = dispatch(FakePage(), "https://jobs.ashbyhq.com/voleon/abc/application", auto_submit=True)
+    assert r.status is ApplyStatus.CAPTCHA
+    assert r.job["company"] == "voleon"

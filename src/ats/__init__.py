@@ -5,22 +5,26 @@ from urllib.parse import urlparse
 
 
 def detect_ats(url: str) -> str:
-    """Identify the ATS provider from a job URL. Returns 'workday', 'lever', or 'unknown'."""
+    """Identify the ATS provider from a job URL. Returns 'workday', 'lever', 'ashby', or 'unknown'."""
     host = (urlparse(url).hostname or "").lower()
     if "myworkdayjobs.com" in host:
         return "workday"
     if "jobs.lever.co" in host:
         return "lever"
+    if "jobs.ashbyhq.com" in host:
+        return "ashby"
     return "unknown"
 
 
 from .base import ApplyResult, ApplyStatus, ATSDriver
 from .workday import WorkdayDriver
 from .lever import LeverDriver
+from .ashby import AshbyDriver
 
 _REGISTRY: dict[str, ATSDriver] = {
     "workday": WorkdayDriver(),
     "lever": LeverDriver(),
+    "ashby": AshbyDriver(),
 }
 
 
