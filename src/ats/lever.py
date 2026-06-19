@@ -144,3 +144,121 @@ def fill_application(page, profile: dict) -> list[str]:
             sel = 'textarea' if kind == "textarea" else 'input[type="text"]'
             li.locator(sel).first.fill(str(ans))
     return flags
+
+
+SUBMIT_BTN = 'button.template-btn-submit, button:has-text("Submit application")'
+
+
+def missing_required(page) -> list[str]:
+    """Labels of required fields that are still empty (or no checkbox ticked)."""
+    missing: list[str] = []
+    lis = page.locator('li')
+    for i in range(lis.count()):
+        li = lis.nth(i)
+        label_loc = li.locator('.application-label, label').first
+        if not label_loc.count():
+            continue
+        label = label_loc.inner_text().strip()
+        if "✱" not in label and "*" not in label:
+            continue
+        cbs = li.locator('input[type="checkbox"]')
+        if cbs.count():
+            if not any(cbs.nth(j).is_checked() for j in range(cbs.count())):
+                missing.append(label)
+            continue
+        field = li.locator('input[type="text"], input[type="email"], textarea, input[type="file"]')
+        if not field.count():
+            continue
+        el = field.first
+        if el.get_attribute("type") == "file":
+            # resume: Lever shows an "uploaded" indicator; treat presence of a value as ok
+            if not li.locator('.filename, [class*="resume"]').count():
+                missing.append(label)
+            continue
+        if not (el.input_value() or "").strip():
+            missing.append(label)
+    return missing
+
+
+def submit(page) -> None:
+    btn = page.locator(SUBMIT_BTN)
+    btn.first.scroll_into_view_if_needed()
+    btn.first.click()
+    page.wait_for_timeout(4000)
+
+
+def apply_one(url: str | None = None, *, auto_submit: bool = False, page=None) -> dict:
+    from .. import browser
+    from ..profile import load_profile
+    from ..record import parse_job, stash_job, _load, _save
+    from playwright.sync_api import sync_playwright
+    import datetime
+
+    own_browser = page is None
+    pw = b = None
+    if own_browser:
+        pw = sync_playwright().start()
+        b = browser.connect(pw)
+        page = browser.find_any_tab(b)
+
+    def _finish(result: dict) -> dict:
+        if own_browser and b:
+            b.close()
+            pw.stop()
+        return result
+
+    try:
+        if url:
+            target = url if url.rstrip("/").endswith("/apply") else url.rstrip("/") + "/apply"
+            page.goto(target)
+            page.wait_for_timeout(3000)
+        profile = load_profile()
+        job = parse_job(page.url, page)
+        job["url"] = page.url.split("?")[0]
+
+        flags = fill_application(page, profile)
+        missing = missing_required(page)
+        if flags or missing:
+            reason = f"Unanswered required fields: {missing or flags}"
+            return _finish({"status": "blocked", "reason": reason, **job})
+
+        if not auto_submit:
+            return _finish({"status": "review", "reason": "Filled; stopped before submit", **job})
+
+        stash_job(job, url=job["url"])
+        submit(page)
+        entry = {**job, "status": "Submitted",
+                 "submitted_at": datetime.date.today().isoformat()}
+        entries = [e for e in _load()
+                   if (e.get("tenant"), e.get("job_id")) != (entry.get("tenant"), entry.get("job_id"))
+                   or not entry.get("job_id")]
+        entries.append(entry)
+        _save(entries)
+        return _finish({"status": "submitted", "reason": "Submitted and recorded", **job})
+    except Exception as e:  # noqa: BLE001
+        return _finish({"status": "error", "reason": str(e), "url": url or ""})
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("url", nargs="?", help="Lever job URL")
+    ap.add_argument("--no-submit", action="store_true",
+                    help="fill only and stop before Submit (overrides auto_submit)")
+    args = ap.parse_args()
+
+    import yaml
+    from pathlib import Path
+    cfg_path = Path(__file__).resolve().parent.parent.parent / "agent_config.yaml"
+    auto = False
+    if cfg_path.exists():
+        auto = bool(yaml.safe_load(cfg_path.read_text()).get("auto_submit", False))
+    if args.no_submit:
+        auto = False
+
+    result = apply_one(args.url, auto_submit=auto)
+    print(result["status"].upper(), "-", result["reason"])
+
+
+if __name__ == "__main__":
+    main()
