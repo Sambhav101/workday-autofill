@@ -10,11 +10,8 @@ from __future__ import annotations
 
 import argparse
 import datetime
-from pathlib import Path
-import yaml
 from playwright.sync_api import sync_playwright, Page
 from rich.console import Console
-from rich.table import Table
 
 from . import browser
 from .browser import find_any_tab
@@ -420,77 +417,32 @@ def _run_one(page, *, auto_submit: bool = False, max_pages: int = 10) -> dict:
 
 # ── batch runner ────────────────────────────────────────────────────────────
 
-REPORT_PATH = Path(__file__).resolve().parent.parent / "report.yaml"
-
-
-def _save_report(results: list[dict]):
-    REPORT_PATH.write_text(yaml.safe_dump(results, default_flow_style=False, sort_keys=False))
-
-
 def run_batch(urls: list[str], *, auto_submit: bool = True) -> list[dict]:
-    """Apply to multiple jobs. Blockers are logged, not raised."""
-    results = []
-    with sync_playwright() as pw:
-        b = browser.connect(pw)
-        page = browser.find_any_tab(b)
-        if not page:
-            console.print("[red]No Chrome tab available.[/red]")
-            return results
-
-        for i, url in enumerate(urls, 1):
-            console.rule(f"[bold]Job {i}/{len(urls)}[/bold]")
-            try:
-                page.goto(url)
-                page.wait_for_timeout(5000)
-                result = _run_one(page, auto_submit=auto_submit)
-            except Exception as e:  # noqa: BLE001
-                result = {"status": "error", "reason": str(e), "url": url}
-            results.append(result)
-            status = result["status"]
-            title = result.get("title", "?")
-            tenant = result.get("tenant", "?")
-            if status == "submitted":
-                console.print(f"[green]{title} @ {tenant} — submitted[/green]")
-            elif status == "skipped":
-                console.print(f"[dim]{title} @ {tenant} — skipped: {result['reason']}[/dim]")
-            elif status in ("blocked", "error"):
-                console.print(f"[red]{title} @ {tenant} — {status}: {result['reason']}[/red]")
-            _save_report(results)
-
-        b.close()
-
-    # ── summary table ──
-    console.rule("[bold]Batch Summary[/bold]")
-    table = Table()
-    table.add_column("Job")
-    table.add_column("Company")
-    table.add_column("Status")
-    table.add_column("Reason")
-    for r in results:
-        color = {"submitted": "green", "review": "cyan", "skipped": "dim",
-                 "blocked": "yellow", "error": "red"}.get(r["status"], "white")
-        table.add_row(
-            r.get("title", "?")[:40],
-            r.get("tenant", "?"),
-            f"[{color}]{r['status']}[/{color}]",
-            r.get("reason", "")[:60],
-        )
-    console.print(table)
-    console.print(f"\nFull report saved to [bold]{REPORT_PATH}[/bold]")
-    return results
+    """Apply to multiple jobs (any supported ATS). Delegates to the shared dispatcher."""
+    from .ats import run_batch as ats_run_batch
+    return [r.to_dict() for r in ats_run_batch(urls, auto_submit=auto_submit)]
 
 
 def main(url: str | None = None, *, auto_submit: bool = False) -> dict:
-    """Single-job entry point. Navigates to URL if given, otherwise uses current tab."""
+    """Single-job entry point. With a URL, route via the ATS dispatcher; without one,
+    fill the current Workday tab (unchanged behavior)."""
+    if url:
+        from .ats import dispatch
+        with sync_playwright() as pw:
+            b = browser.connect(pw)
+            page = browser.find_any_tab(b)
+            if not page:
+                console.print("[red]No Chrome tab available.[/red]")
+                return {"status": "error", "reason": "No Chrome tab available"}
+            result = dispatch(page, url, auto_submit=auto_submit).to_dict()
+            b.close()
+            return result
     with sync_playwright() as pw:
         b = browser.connect(pw)
-        page = browser.find_any_tab(b) if url else browser.find_workday_tab(b)
+        page = browser.find_workday_tab(b)
         if not page:
             console.print("[red]No Chrome tab available.[/red]")
             return {"status": "error", "reason": "No Chrome tab available"}
-        if url:
-            page.goto(url)
-            page.wait_for_timeout(5000)
         result = _run_one(page, auto_submit=auto_submit)
         b.close()
         return result
