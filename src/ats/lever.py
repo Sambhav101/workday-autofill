@@ -169,6 +169,14 @@ def fill_application(page, profile: dict) -> list[str]:
 
 SUBMIT_BTN = 'button.template-btn-submit, button:has-text("Submit application")'
 
+CAPTCHA_SEL = ('#h-captcha, .h-captcha, iframe[src*="hcaptcha"], '
+               '.g-recaptcha, iframe[src*="recaptcha"]')
+
+
+def has_captcha(page) -> bool:
+    """True if the form shows an hCaptcha/reCAPTCHA challenge — submission needs a human."""
+    return page.locator(CAPTCHA_SEL).count() > 0
+
 
 def missing_required(page) -> list[str]:
     """Labels of required fields that are still empty (or no checkbox ticked)."""
@@ -245,6 +253,12 @@ def apply_one(url: str | None = None, *, auto_submit: bool = False, page=None) -
             reason = f"Unanswered required fields — missing: {missing}; flagged: {flags}"
             return _finish({"status": "blocked", "reason": reason, **job})
 
+        # Captcha present → never auto-submit; the human solves it and submits.
+        if has_captcha(page):
+            return _finish({"status": "captcha",
+                            "reason": "Form filled. CAPTCHA present — solve it in the "
+                                      "browser and click Submit yourself.", **job})
+
         if not auto_submit:
             return _finish({"status": "review", "reason": "Filled; stopped before submit", **job})
 
@@ -281,6 +295,26 @@ def main():
 
     result = apply_one(args.url, auto_submit=auto)
     print(result["status"].upper(), "-", result["reason"])
+    if result["status"] == "captcha":
+        _notify("Lever: CAPTCHA — action needed",
+                f"{result.get('company', 'job')} filled. Solve the captcha and submit.")
+
+
+def _notify(title: str, message: str) -> None:
+    """Best-effort macOS desktop notification with a sound; no-op elsewhere or on error."""
+    import sys
+    import subprocess
+    if sys.platform != "darwin":
+        return
+    try:
+        safe = lambda s: s.replace('"', "'")
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{safe(message)}" with title "{safe(title)}" sound name "Glass"'],
+            check=False, capture_output=True, timeout=5,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 if __name__ == "__main__":
