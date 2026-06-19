@@ -47,3 +47,9 @@ def test_choose_checkbox_matches_how_did_you_hear():
 def test_choose_checkbox_no_match_returns_none():
     options = ["Friend", "Recruiter/current employee"]
     assert lever.choose_checkbox("How did you hear about us?", options, PROFILE) is None
+
+
+def test_required_label_detects_star():
+    assert lever._required_label("What is/was your GPA? ✱") is True
+    assert lever._required_label("Required field *") is True
+    assert lever._required_label("If Other, please specify:") is False

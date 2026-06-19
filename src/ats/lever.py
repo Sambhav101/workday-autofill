@@ -123,6 +123,11 @@ def _custom_cards(page):
     return results
 
 
+def _required_label(label: str) -> bool:
+    """A Lever field is required when its label carries the ✱ marker."""
+    return "✱" in label or "*" in label
+
+
 def fill_application(page, profile: dict) -> list[str]:
     flags: list[str] = []
 
@@ -142,14 +147,20 @@ def fill_application(page, profile: dict) -> list[str]:
                           for j in range(opts.count())]
             pick = choose_checkbox(label, opt_labels, profile)
             if pick is None:
-                flags.append(f"{label!r}: no checkbox match")
+                if _required_label(label):
+                    flags.append(f"{label!r}: no checkbox match")
                 continue
             idx = opt_labels.index(pick)
-            opts.nth(idx).check()
+            # Lever forms can carry an hCaptcha widget whose iframe overlay sits
+            # over the checkbox coordinates, so even a forced coordinate-click hits
+            # the iframe. Dispatch the click directly on the input node via JS,
+            # which bypasses the overlay and fires the change event Lever listens for.
+            opts.nth(idx).evaluate("el => { if (!el.checked) el.click(); }")
         else:
             ans = answer_custom(label, profile)
             if ans is FLAG or ans is None:
-                flags.append(f"{label!r}: needs manual answer")
+                if _required_label(label):
+                    flags.append(f"{label!r}: needs manual answer")
                 continue
             sel = 'textarea' if kind == "textarea" else 'input[type="text"]'
             li.locator(sel).first.fill(str(ans))
