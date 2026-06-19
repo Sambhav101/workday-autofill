@@ -36,3 +36,13 @@ def test_dispatch_routes_to_lever(monkeypatch):
     r = dispatch(FakePage(), "https://jobs.lever.co/hive/abc", auto_submit=True)
     assert r.status is ApplyStatus.SUBMITTED
     assert r.job["company"] == "hive"
+
+
+def test_dispatch_routes_to_workday(monkeypatch):
+    import src.apply as apply_mod
+    monkeypatch.setattr(apply_mod, "_run_one",
+                        lambda page, *, auto_submit:
+                        {"status": "review", "reason": "ok", "tenant": "acme"})
+    r = dispatch(FakePage(), "https://acme.wd5.myworkdayjobs.com/job/x", auto_submit=False)
+    assert r.status is ApplyStatus.REVIEW
+    assert r.job["tenant"] == "acme"

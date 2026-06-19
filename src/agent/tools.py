@@ -39,21 +39,14 @@ def _cleanup():
 # ── tool implementations ───────────────────────────────────────────────────
 
 def _apply_to_job(url: str) -> dict:
-    from ..ats import detect_ats
-    if detect_ats(url) == "lever":
-        from ..ats.lever import apply_one
-        page = _get_page()
-        return apply_one(url, auto_submit=True, page=page)
-    from ..apply import _run_one
+    from ..ats import dispatch
     page = _get_page()
-    page.goto(url)
-    page.wait_for_timeout(5000)
-    return _run_one(page, auto_submit=True)
+    return dispatch(page, url, auto_submit=True).to_dict()
 
 
 def _apply_batch(urls: list[str]) -> list[dict]:
-    from ..apply import run_batch
-    return run_batch(urls, auto_submit=True)
+    from ..ats import run_batch
+    return [r.to_dict() for r in run_batch(urls, auto_submit=True)]
 
 
 def _check_page() -> dict:

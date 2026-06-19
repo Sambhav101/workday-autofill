@@ -9,7 +9,6 @@ from typing import Callable
 from playwright.sync_api import sync_playwright
 
 from .. import browser
-from ..apply import _run_one
 from ..record import _load as load_applications
 from . import queue as Q
 
@@ -77,9 +76,8 @@ def run_queue(backend: str = "direct", auto_submit: bool = True):
                 _emit("status", {"url": url, "status": "running"})
 
                 try:
-                    page.goto(url)
-                    page.wait_for_timeout(5000)
-                    result = _run_one(page, auto_submit=auto_submit)
+                    from ..ats import dispatch
+                    result = dispatch(page, url, auto_submit=auto_submit).to_dict()
                     status = result.get("status", "error")
                     reason = result.get("reason", "")
                     title = result.get("title", "")
