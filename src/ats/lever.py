@@ -9,6 +9,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from .base import ApplyResult
+from .captcha import has_captcha
 from ..questions import _answer_for, _sensitive_answer, FLAG
 from ..experience import upload_resume
 
@@ -169,14 +170,6 @@ def fill_application(page, profile: dict) -> list[str]:
 
 
 SUBMIT_BTN = 'button.template-btn-submit, button:has-text("Submit application")'
-
-CAPTCHA_SEL = ('#h-captcha, .h-captcha, iframe[src*="hcaptcha"], '
-               '.g-recaptcha, iframe[src*="recaptcha"]')
-
-
-def has_captcha(page) -> bool:
-    """True if the form shows an hCaptcha/reCAPTCHA challenge — submission needs a human."""
-    return page.locator(CAPTCHA_SEL).count() > 0
 
 
 def missing_required(page) -> list[str]:
