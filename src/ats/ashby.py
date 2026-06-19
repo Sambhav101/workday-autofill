@@ -126,6 +126,13 @@ def _fill_yesno_fields(page, profile: dict) -> list[str]:
     the question engine and click the matching button. Required-but-unanswerable → flag."""
     flags: list[str] = []
     widgets = page.locator('[class*="_yesno"]')
+    if widgets.count() == 0:
+        # Defensive: this widget relies on Ashby's CSS-module class token. If a rename
+        # ever breaks the match but custom checkbox fields still exist, fail loud
+        # (→ blocked) rather than silently skipping a possibly-required work-auth question.
+        if page.locator('input[type="checkbox"][name]').count():
+            flags.append("Yes/No widgets present but unrecognized — Ashby markup may have changed")
+        return flags
     for i in range(widgets.count()):
         w = widgets.nth(i)
         question = w.evaluate("""el => {
