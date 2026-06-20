@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 from .base import ApplyResult
 from .captcha import has_captcha
+from .notify import notify
 from ..questions import _answer_for, _sensitive_answer, FLAG
 from ..experience import upload_resume
 
@@ -292,25 +293,8 @@ def main():
     result = apply_one(args.url, auto_submit=auto)
     print(result["status"].upper(), "-", result["reason"])
     if result["status"] == "captcha":
-        _notify("Lever: CAPTCHA — action needed",
-                f"{result.get('company', 'job')} filled. Solve the captcha and submit.")
-
-
-def _notify(title: str, message: str) -> None:
-    """Best-effort macOS desktop notification with a sound; no-op elsewhere or on error."""
-    import sys
-    import subprocess
-    if sys.platform != "darwin":
-        return
-    try:
-        safe = lambda s: s.replace('"', "'")
-        subprocess.run(
-            ["osascript", "-e",
-             f'display notification "{safe(message)}" with title "{safe(title)}" sound name "Glass"'],
-            check=False, capture_output=True, timeout=5,
-        )
-    except Exception:  # noqa: BLE001
-        pass
+        notify("Lever: CAPTCHA — action needed",
+               f"{result.get('company', 'job')} filled. Solve the captcha and submit.")
 
 
 class LeverDriver:
